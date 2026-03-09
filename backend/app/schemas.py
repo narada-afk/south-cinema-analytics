@@ -8,6 +8,7 @@
 #   Sprint 6   : ActorSearchResult, ActorProfile, ActorMovieOut,
 #                CollaboratorOut, DirectorCollabOut, ProductionOut,
 #                ActorCompareStats, CompareResponse, HealthOut
+#   Sprint 10  : Collaboration (GET /analytics/top-collaborations)
 
 from pydantic import BaseModel
 from typing import Optional, List
@@ -133,6 +134,22 @@ class ProductionOut(BaseModel):
     Sourced from the actor_production_stats precomputed table.
     """
     company: str
+    films: int
+
+
+class Collaboration(BaseModel):
+    """
+    One actor pair row returned by GET /analytics/top-collaborations.
+    Sourced from the precomputed actor_collaborations table (O(1) per pair).
+
+    Fields
+    ------
+    actor_1 : name of the first actor in the pair (lower primary-key id)
+    actor_2 : name of the second actor in the pair (higher primary-key id)
+    films   : number of movies the two actors appeared in together
+    """
+    actor_1: str
+    actor_2: str
     films: int
 
 

@@ -9,9 +9,10 @@
 #                get_actor_movies_enriched, get_actor_collaborators,
 #                get_actor_directors, get_actor_production,
 #                get_actor_compare_stats, get_health_counts
+#   Sprint 10  : get_top_collaborations
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from typing import Optional
 
 from . import models, schemas
@@ -244,6 +245,60 @@ def get_health_counts(db: Session) -> tuple[int, int]:
     actor_count = db.query(func.count(models.Actor.id)).scalar() or 0
     movie_count = db.query(func.count(models.Movie.id)).scalar() or 0
     return actor_count, movie_count
+
+
+# ===========================================================================
+# Top collaborations  (GET /analytics/top-collaborations)
+# ===========================================================================
+
+def get_top_collaborations(db: Session, limit: int = 20) -> list:
+    """
+    Return the actor pairs with the most shared films, ranked descending.
+
+    Data source
+    -----------
+    Reads from the **actor_collaborations** precomputed table, which is built
+    by `build_analytics_tables.py` from the union of both ingestion pipelines:
+        • "cast"        — Wikidata-sourced links (Sprints 1-5, 13 original actors)
+        • actor_movies  — TMDB-sourced links   (Sprints 8-9, supporting + Malayalam)
+
+    Using the precomputed table (O(1) scan) instead of re-joining actor_movies
+    at query time keeps response latency sub-millisecond regardless of dataset size.
+
+    The table stores both directions (A→B and B→A).  The WHERE clause
+    ``actor1_id < actor2_id`` selects only one canonical direction per pair,
+    eliminating duplicates without a DISTINCT pass.
+
+    Parameters
+    ----------
+    db    : Active SQLAlchemy session.
+    limit : Maximum rows to return (default 20, passed as query parameter).
+
+    Returns
+    -------
+    List of Row objects, each with fields: actor_1 (str), actor_2 (str), films (int).
+    Ordered by films DESC.
+
+    Example
+    -------
+    >>> rows = get_top_collaborations(db, limit=5)
+    >>> rows[0]
+    ('Mohanlal', 'Jagathy Sreekumar', 60)
+    """
+    sql = text("""
+        SELECT
+            a1.name                          AS actor_1,
+            a2.name                          AS actor_2,
+            ac.collaboration_count           AS films
+        FROM   actor_collaborations ac
+        JOIN   actors a1 ON ac.actor1_id = a1.id
+        JOIN   actors a2 ON ac.actor2_id = a2.id
+        WHERE  ac.actor1_id < ac.actor2_id
+        ORDER  BY ac.collaboration_count DESC
+        LIMIT  :lim
+    """)
+    result = db.execute(sql, {"lim": limit})
+    return result.fetchall()
 
 
 # ===========================================================================
