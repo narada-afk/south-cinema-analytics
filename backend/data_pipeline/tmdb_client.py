@@ -13,6 +13,17 @@ Public functions
         Returns up to top_n members with name, character and billing order.
         Added in Sprint 8 to power ingest_supporting_actors.py.
 
+    search_person_tmdb(name) -> dict | None
+        Search TMDB for a person by name.
+        Returns {tmdb_person_id, name} for the top result or None.
+        Added in Sprint 9 to resolve Malayalam actor identities.
+
+    fetch_person_movie_credits(person_id) -> list[dict]
+        Fetch all movies an actor has appeared in (their filmography).
+        Calls GET /person/{id}/movie_credits and returns cast entries
+        enriched with movie metadata (title, year, language, images).
+        Added in Sprint 9 to power ingest_malayalam_actors.py.
+
 Authentication
 --------------
 Set the environment variable TMDB_API_KEY to your TMDB v3 API key before
@@ -64,11 +75,13 @@ from urllib3.util.retry import Retry
 # Constants
 # ---------------------------------------------------------------------------
 
-_TMDB_BASE          = "https://api.themoviedb.org/3"
-_SEARCH_URL         = f"{_TMDB_BASE}/search/movie"
-_CREDITS_URL        = f"{_TMDB_BASE}/movie/{{tmdb_id}}/credits"  # .format(tmdb_id=…)
-_POSTER_BASE_URL    = "https://image.tmdb.org/t/p/w500"
-_BACKDROP_BASE_URL  = "https://image.tmdb.org/t/p/w780"
+_TMDB_BASE            = "https://api.themoviedb.org/3"
+_SEARCH_URL           = f"{_TMDB_BASE}/search/movie"
+_CREDITS_URL          = f"{_TMDB_BASE}/movie/{{tmdb_id}}/credits"   # Sprint 8
+_PERSON_SEARCH_URL    = f"{_TMDB_BASE}/search/person"               # Sprint 9
+_PERSON_CREDITS_URL   = f"{_TMDB_BASE}/person/{{person_id}}/movie_credits"  # Sprint 9
+_POSTER_BASE_URL      = "https://image.tmdb.org/t/p/w500"
+_BACKDROP_BASE_URL    = "https://image.tmdb.org/t/p/w780"
 
 REQUEST_DELAY = 0.25   # minimum seconds between API calls
 
@@ -289,4 +302,147 @@ def fetch_movie_credits(tmdb_id: int, top_n: int = 10) -> list[dict]:
             "cast_order":     member.get("order", 0),
         })
 
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Sprint 9 — Person search and filmography
+# ---------------------------------------------------------------------------
+
+def search_person_tmdb(name: str) -> Optional[dict]:
+    """
+    Search TMDB for a person (actor/director) by name.
+
+    Calls:
+        GET https://api.themoviedb.org/3/search/person?query={name}
+
+    TMDB returns results ranked by relevance and popularity; the first result
+    is used as the best match (almost always correct for well-known actors).
+
+    Parameters
+    ----------
+    name : str
+        Actor's full name as commonly used (e.g. "Mohanlal", "Fahadh Faasil").
+
+    Returns
+    -------
+    dict with keys:
+        tmdb_person_id : int  — TMDB's unique numeric person ID
+        name           : str  — TMDB's canonical name for this person
+
+    Returns None if no match is found or if the API call fails.
+
+    Example
+    -------
+    >>> result = search_person_tmdb("Mohanlal")
+    >>> result["tmdb_person_id"]
+    118411
+    """
+    api_key = _get_api_key()
+    params  = {
+        "api_key":  api_key,
+        "query":    name,
+        "language": "en-US",
+        "page":     1,
+    }
+
+    try:
+        data = _api_get(_PERSON_SEARCH_URL, params)
+    except requests.RequestException:
+        return None
+
+    results = data.get("results") or []
+    if not results:
+        return None
+
+    best = results[0]   # TMDB ranks by relevance + popularity
+    return {
+        "tmdb_person_id": best.get("id"),
+        "name":           best.get("name"),
+    }
+
+
+def fetch_person_movie_credits(person_id: int) -> list[dict]:
+    """
+    Fetch the complete filmography (movie credits) for a person from TMDB.
+
+    Calls:
+        GET https://api.themoviedb.org/3/person/{person_id}/movie_credits
+
+    TMDB returns every movie the person has appeared in as a cast member,
+    including metadata for each film (title, release date, language, ratings,
+    images).  The list is returned sorted by release year descending so the
+    most recent films are processed first.
+
+    Parameters
+    ----------
+    person_id : int
+        TMDB's numeric person ID (as returned by search_person_tmdb).
+
+    Returns
+    -------
+    list of dict, each containing:
+        tmdb_id           : int         — TMDB movie ID
+        title             : str         — movie title (English)
+        release_year      : int | None  — 4-digit year from release_date
+        original_language : str | None  — ISO 639-1 code ('ml', 'ta', 'te', …)
+        vote_average      : float | None
+        popularity        : float | None
+        poster_url        : str | None  — full w500 poster URL
+        backdrop_url      : str | None  — full w780 backdrop URL
+        character         : str | None  — character name in this film
+        cast_order        : int         — billing position (0 = top-billed)
+
+    Returns an empty list on API error or if no cast data is available.
+
+    Example
+    -------
+    >>> films = fetch_person_movie_credits(118411)   # Mohanlal
+    >>> films[0]["title"]
+    'Malaikottai Vaaliban'
+    >>> films[0]["original_language"]
+    'ml'
+    """
+    api_key = _get_api_key()
+    url     = _PERSON_CREDITS_URL.format(person_id=person_id)
+    params  = {"api_key": api_key, "language": "en-US"}
+
+    try:
+        data = _api_get(url, params)
+    except requests.RequestException:
+        return []
+
+    raw_cast = data.get("cast") or []
+
+    results: list[dict] = []
+    for entry in raw_cast:
+        tmdb_movie_id = entry.get("id")
+        title         = (entry.get("title") or "").strip()
+        if not tmdb_movie_id or not title:
+            continue                         # skip malformed entries
+
+        # Parse release year from "YYYY-MM-DD" string
+        release_year: Optional[int] = None
+        release_date = entry.get("release_date") or ""
+        if len(release_date) >= 4:
+            try:
+                release_year = int(release_date[:4])
+            except ValueError:
+                pass
+
+        results.append({
+            "tmdb_id":           tmdb_movie_id,
+            "title":             title,
+            "release_year":      release_year,
+            "original_language": entry.get("original_language"),
+            "vote_average":      entry.get("vote_average"),
+            "popularity":        entry.get("popularity"),
+            "poster_url":        _build_image_url(_POSTER_BASE_URL,   entry.get("poster_path")),
+            "backdrop_url":      _build_image_url(_BACKDROP_BASE_URL, entry.get("backdrop_path")),
+            "character":         entry.get("character") or None,
+            "cast_order":        entry.get("order", 0),
+        })
+
+    # Newest films first (matching enrich_tmdb_movies ordering convention)
+    results.sort(key=lambda m: m["release_year"] or 0, reverse=True)
     return results
