@@ -324,6 +324,11 @@ function FilmsTogether({
     )
   }
 
+  // Show footnote if any film is missing character data for either actor
+  const hasPartialData = films.some(
+    (f) => !f.actor1_character || !f.actor2_character
+  )
+
   return (
     <div className="flex flex-col gap-3">
       {films.map((film, i) => {
@@ -394,6 +399,13 @@ function FilmsTogether({
           </div>
         )
       })}
+
+      {/* Footnote — only shown when some role/character data is unavailable */}
+      {hasPartialData && (
+        <p className="text-[11px] text-white/20 px-1 pt-1">
+          * Role and character data not available for all entries.
+        </p>
+      )}
     </div>
   )
 }
