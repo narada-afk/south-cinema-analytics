@@ -564,9 +564,29 @@ export default async function ComparePage({ params }: PageProps) {
               <span className="text-white/25">vs</span>{' '}
               {data2.profile.name}
             </h1>
-            <p className="text-sm text-white/30">Side-by-side comparison</p>
+            <p className="text-sm text-white/30">
+              {sharedFilms.length > 0
+                ? `${sharedFilms.length} film${sharedFilms.length !== 1 ? 's' : ''} together · Side-by-side comparison`
+                : 'Side-by-side comparison'}
+            </p>
           </div>
         </div>
+
+        {/* ── Films Together ─────────────────────────────────────── */}
+        {/* Shown first — this is the primary reason users land here from an Iconic Duo card */}
+        <section className="flex flex-col gap-4">
+          <div className="flex items-baseline gap-3">
+            <h2 className="text-lg font-bold text-white/80">Films Together</h2>
+            <span className="text-sm text-white/30">
+              {sharedFilms.length} film{sharedFilms.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <FilmsTogether
+            films={sharedFilms}
+            name1={data1.profile.name}
+            name2={data2.profile.name}
+          />
+        </section>
 
         {/* ── Summary Card (screenshot-friendly) ────────────────── */}
         <CompareSummary
@@ -594,21 +614,6 @@ export default async function ComparePage({ params }: PageProps) {
         <section className="flex flex-col gap-4">
           <h2 className="text-lg font-bold text-white/80">Who leads?</h2>
           <StatTable data1={data1} data2={data2} />
-        </section>
-
-        {/* ── Films Together ─────────────────────────────────────── */}
-        <section className="flex flex-col gap-4">
-          <div className="flex items-baseline gap-3">
-            <h2 className="text-lg font-bold text-white/80">Films Together</h2>
-            <span className="text-sm text-white/30">
-              {sharedFilms.length} film{sharedFilms.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <FilmsTogether
-            films={sharedFilms}
-            name1={data1.profile.name}
-            name2={data2.profile.name}
-          />
         </section>
 
         {/* ── Top Collaborators ──────────────────────────────────── */}
