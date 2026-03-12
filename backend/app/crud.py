@@ -11,6 +11,7 @@
 #                get_actor_compare_stats, get_health_counts
 #   Sprint 10  : get_top_collaborations
 #   Sprint 15  : get_insights
+#   Sprint 19  : get_top_directors, get_top_production_houses
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text, case
@@ -564,3 +565,110 @@ def get_actor_stats(db: Session, actor_name: str) -> Optional[schemas.LegacyActo
         movies_after_2015=movies_after_2015,
         avg_box_office=avg_box_office,
     )
+
+
+# ===========================================================================
+# Top directors  (GET /analytics/directors)  Sprint 19
+# ===========================================================================
+
+def get_top_directors(
+    db: Session, industry: Optional[str] = None, limit: int = 30
+) -> list:
+    """
+    Return directors ranked by number of films in the database.
+
+    Data source
+    -----------
+    Reads from the legacy ``movies.director`` TEXT column — the denormalized
+    field that is always populated.  The normalised ``movie_directors`` join
+    table is more correct but only covers a subset of movies; this query uses
+    the legacy column for maximum coverage.
+
+    Filtering
+    ---------
+    industry : optional case-insensitive match against ``movies.industry``.
+               Pass None / "all" / "explore" for the cross-industry view.
+
+    Deduplication
+    -------------
+    Only directors with ≥ 2 films are included — eliminates one-off credits
+    that pollute the leaderboard with unique names.
+
+    Returns
+    -------
+    List of Row objects with fields: name (str), film_count (int),
+    industries (str — comma-separated, e.g. "Telugu, Tamil").
+    Ordered by film_count DESC.
+    """
+    ind = (
+        industry.lower()
+        if industry and industry.lower() not in ("all", "explore")
+        else None
+    )
+    sql = text("""
+        SELECT
+            m.director                               AS name,
+            COUNT(*)                                 AS film_count,
+            STRING_AGG(DISTINCT m.industry, ', ')    AS industries
+        FROM   movies m
+        WHERE  m.director IS NOT NULL
+          AND  m.director <> ''
+          AND  (:ind IS NULL OR LOWER(m.industry) = :ind)
+        GROUP  BY m.director
+        HAVING COUNT(*) >= 2
+        ORDER  BY film_count DESC
+        LIMIT  :lim
+    """)
+    return db.execute(sql, {"ind": ind, "lim": limit}).fetchall()
+
+
+# ===========================================================================
+# Top production houses  (GET /analytics/production-houses)  Sprint 19
+# ===========================================================================
+
+def get_top_production_houses(
+    db: Session, industry: Optional[str] = None, limit: int = 20
+) -> list:
+    """
+    Return production companies ranked by number of films in the database.
+
+    Data source
+    -----------
+    Reads from ``movies.production_company`` — populated by enrich_movies.py
+    via Wikipedia infobox scraping.  Rows where the column is NULL or empty
+    are excluded.
+
+    Filtering
+    ---------
+    industry : optional case-insensitive match against ``movies.industry``.
+
+    Deduplication
+    -------------
+    Only companies with ≥ 2 films are included.
+
+    Returns
+    -------
+    List of Row objects with fields: name (str), film_count (int),
+    industries (str — comma-separated).
+    Ordered by film_count DESC.
+    """
+    ind = (
+        industry.lower()
+        if industry and industry.lower() not in ("all", "explore")
+        else None
+    )
+    sql = text("""
+        SELECT
+            m.production_company                     AS name,
+            COUNT(*)                                 AS film_count,
+            STRING_AGG(DISTINCT m.industry, ', ')    AS industries
+        FROM   movies m
+        WHERE  m.production_company IS NOT NULL
+          AND  m.production_company <> ''
+          AND  (:ind IS NULL OR LOWER(m.industry) = :ind)
+        GROUP  BY m.production_company
+        HAVING COUNT(*) >= 2
+        ORDER  BY film_count DESC
+        LIMIT  :lim
+    """)
+    return db.execute(sql, {"ind": ind, "lim": limit}).fetchall()

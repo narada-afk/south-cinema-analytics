@@ -169,7 +169,7 @@ export default async function HomePage({
 
       {/* Glass Nav — aligned to same container */}
       <div className="max-w-[1200px] mx-auto px-6">
-        <NavTabs activeIndustry={industry} />
+        <NavTabs activeTab={industry} />
       </div>
 
       {/* Page content */}

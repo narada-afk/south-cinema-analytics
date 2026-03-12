@@ -83,6 +83,18 @@ export interface SharedFilm {
   actor2_role: string | null
 }
 
+export interface DirectorStat {
+  name: string
+  film_count: number
+  industries: string | null  // comma-separated, e.g. "Telugu, Tamil"
+}
+
+export interface ProductionHouseStat {
+  name: string
+  film_count: number
+  industries: string | null  // comma-separated
+}
+
 // ── Endpoints ────────────────────────────────────────────────────────────────
 
 export async function getInsights(industry?: string): Promise<Insight[]> {
@@ -131,4 +143,22 @@ export async function getSharedFilms(
   actor2Id: number | string
 ): Promise<SharedFilm[]> {
   return apiFetch<SharedFilm[]>(`/actors/${actor1Id}/shared/${actor2Id}`)
+}
+
+export async function getTopDirectors(
+  industry?: string,
+  limit = 30
+): Promise<DirectorStat[]> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (industry && industry !== 'all') params.set('industry', industry)
+  return apiFetch<DirectorStat[]>(`/analytics/directors?${params}`)
+}
+
+export async function getTopProductionHouses(
+  industry?: string,
+  limit = 20
+): Promise<ProductionHouseStat[]> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (industry && industry !== 'all') params.set('industry', industry)
+  return apiFetch<ProductionHouseStat[]>(`/analytics/production-houses?${params}`)
 }

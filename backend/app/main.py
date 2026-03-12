@@ -13,6 +13,7 @@
 #                /compare (analytics-backed, O(1))
 #   Sprint 10  : /analytics/top-collaborations
 #   Sprint 15  : /analytics/insights
+#   Sprint 19  : /analytics/directors, /analytics/production-houses
 
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -564,4 +565,105 @@ def top_collaborations(
     return [
         schemas.Collaboration(actor_1=row.actor_1, actor_2=row.actor_2, films=row.films)
         for row in rows
+    ]
+
+
+@app.get(
+    "/analytics/directors",
+    response_model=List[schemas.DirectorStat],
+    summary="Top directors by number of films",
+    tags=["Analytics"],
+)
+def get_top_directors(
+    industry: Optional[str] = Query(
+        default=None,
+        description=(
+            "Filter by industry — 'telugu', 'tamil', 'malayalam', 'kannada'. "
+            "Omit or pass 'all' for the cross-industry global view."
+        ),
+    ),
+    limit: int = Query(
+        default=30,
+        ge=1,
+        le=100,
+        description="Maximum number of directors to return (1–100, default 30)",
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns directors ranked by how many films they have directed in the database.
+
+    Data is read from the ``movies.director`` TEXT column — the denormalized
+    legacy column which is populated for nearly every film.  Only directors
+    with ≥ 2 films are included to eliminate one-off credits.
+
+    The ``industries`` field is a comma-separated string of distinct industries
+    for all films by this director (e.g. ``"Telugu, Tamil"``).
+
+    Example response
+    ----------------
+    ```json
+    [
+      { "name": "S. P. Muthuraman", "film_count": 28, "industries": "Tamil" },
+      { "name": "Priyadarshan",      "film_count": 22, "industries": "Malayalam, Tamil" }
+    ]
+    ```
+    """
+    rows = crud.get_top_directors(db, industry=industry, limit=limit)
+    return [
+        schemas.DirectorStat(
+            name=r.name,
+            film_count=r.film_count,
+            industries=r.industries,
+        )
+        for r in rows
+    ]
+
+
+@app.get(
+    "/analytics/production-houses",
+    response_model=List[schemas.ProductionHouseStat],
+    summary="Top production houses by number of films",
+    tags=["Analytics"],
+)
+def get_top_production_houses(
+    industry: Optional[str] = Query(
+        default=None,
+        description=(
+            "Filter by industry — 'telugu', 'tamil', 'malayalam', 'kannada'. "
+            "Omit or pass 'all' for the cross-industry global view."
+        ),
+    ),
+    limit: int = Query(
+        default=20,
+        ge=1,
+        le=100,
+        description="Maximum number of production houses to return (1–100, default 20)",
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns production companies ranked by how many films they have produced.
+
+    Data is read from ``movies.production_company`` — populated by
+    ``enrich_movies.py`` via Wikipedia infobox scraping.  Only companies with
+    ≥ 2 films are included.
+
+    Example response
+    ----------------
+    ```json
+    [
+      { "name": "Sun Pictures",        "film_count": 14, "industries": "Tamil" },
+      { "name": "Mythri Movie Makers", "film_count": 10, "industries": "Telugu" }
+    ]
+    ```
+    """
+    rows = crud.get_top_production_houses(db, industry=industry, limit=limit)
+    return [
+        schemas.ProductionHouseStat(
+            name=r.name,
+            film_count=r.film_count,
+            industries=r.industries,
+        )
+        for r in rows
     ]

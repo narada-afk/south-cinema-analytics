@@ -10,6 +10,8 @@
 #                ActorCompareStats, CompareResponse, HealthOut
 #   Sprint 10  : Collaboration (GET /analytics/top-collaborations)
 #   Sprint 15  : Insight, InsightsOut (GET /analytics/insights)
+#   Sprint 19  : DirectorStat, ProductionHouseStat (GET /analytics/directors,
+#                GET /analytics/production-houses)
 
 from pydantic import BaseModel
 from typing import Optional, List
@@ -283,3 +285,39 @@ class LegacyCompareResponse(BaseModel):
     """Original compare response shape (Sprint 1-2). Kept for reference."""
     actor1: LegacyActorStats
     actor2: LegacyActorStats
+
+
+# ===========================================================================
+# More page schemas  (Sprint 19)
+# ===========================================================================
+
+class DirectorStat(BaseModel):
+    """
+    One row in GET /analytics/directors.
+    Sourced from the movies.director TEXT column (legacy denormalized field).
+
+    Fields
+    ------
+    name       : director name
+    film_count : number of films in the database by this director
+    industries : comma-separated list of industries (e.g. "Telugu, Tamil")
+    """
+    name: str
+    film_count: int
+    industries: Optional[str] = None  # comma-separated string from STRING_AGG
+
+
+class ProductionHouseStat(BaseModel):
+    """
+    One row in GET /analytics/production-houses.
+    Sourced from the movies.production_company column (populated by enrich_movies.py).
+
+    Fields
+    ------
+    name       : production company name
+    film_count : number of films in the database under this company
+    industries : comma-separated list of industries (e.g. "Telugu, Tamil")
+    """
+    name: str
+    film_count: int
+    industries: Optional[str] = None  # comma-separated string from STRING_AGG
