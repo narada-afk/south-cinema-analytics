@@ -2,21 +2,17 @@
 /**
  * VerdictCard — client component
  *
- * Renders a single shared comparison bar per metric.
- * Each bar grows from 0 → target width via CSS transition triggered by
- * IntersectionObserver, so the animation fires the first time the card
- * scrolls into view.
+ * Each metric gets ONE shared scale container.
+ * Both actor fills live inside that container so they race on the same track.
  *
- * Bar anatomy (per actor):
+ *  ┌── ONE container (overflow-hidden, shared bg) ────────────────────────┐
+ *  │  Actor A  ████████████████████████████████████████████████████  27   │  ← 100 %
+ *  │  ─────────────────────────────────────────────────────────────────── │
+ *  │  Actor B  ██████████████████████████████████████████░░░░░░░░░░  25   │  ← 92 %
+ *  └──────────────────────────────────────────────────────────────────────┘
  *
- *   ┌─────────────────────────────────────────────────────┐
- *   │ Actor Name                               Value       │  ← text layer (z-10)
- *   └─────────────────────────────────────────────────────┘
- *     ████████████████████████████████░░░░░░░░░░░░░░░░░░░   ← fill (proportional)
- *
- * The fill is absolutely positioned behind the text.
- * Leading actor → accent color; trailing actor → dim grey.
- * Tied actors → both get their accent color at 100% width.
+ * Fills animate 0 → target via CSS transition, triggered once by
+ * IntersectionObserver. Each metric delays 100 ms more than the previous.
  */
 
 import { useRef, useEffect, useState } from 'react'
@@ -32,71 +28,6 @@ interface ActorData {
   directors: DirectorCollab[]
 }
 
-// ── MetricBar ─────────────────────────────────────────────────────────────────
-
-function MetricBar({
-  name,
-  displayValue,
-  pct,
-  color,
-  isLeading,
-  accentColor,
-  animated,
-  delay,
-}: {
-  name: string
-  displayValue: string
-  /** 0–100: proportional to max value across both actors */
-  pct: number
-  /** Fill color (accent or dim grey) */
-  color: string
-  /** Whether this bar is the leader (affects text contrast) */
-  isLeading: boolean
-  /** Accent color for this actor — used on dim fills */
-  accentColor: string
-  animated: boolean
-  /** CSS transition-delay in seconds */
-  delay: number
-}) {
-  // On a bright colored fill → white text. On a dim grey fill → accent-tinted text.
-  const nameColor  = isLeading ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.45)'
-  const valueColor = isLeading ? '#ffffff'                 : 'rgba(255,255,255,0.38)'
-
-  return (
-    <div
-      className="relative h-11 rounded-xl overflow-hidden"
-      style={{ background: 'rgba(255,255,255,0.04)' }}
-    >
-      {/* Animated fill */}
-      <div
-        className="absolute left-0 top-0 bottom-0 rounded-xl"
-        style={{
-          width: animated ? `${pct}%` : '0%',
-          background: color,
-          transition: `width 0.8s ease-out ${delay}s`,
-          minWidth: animated ? '2px' : '0',
-        }}
-      />
-
-      {/* Text layer — always fully visible above the fill */}
-      <div className="absolute inset-0 flex items-center justify-between px-4 z-10">
-        <span
-          className="text-sm font-semibold truncate pr-3 leading-none"
-          style={{ color: nameColor }}
-        >
-          {name}
-        </span>
-        <span
-          className="text-sm font-bold tabular-nums flex-shrink-0 leading-none"
-          style={{ color: valueColor }}
-        >
-          {displayValue}
-        </span>
-      </div>
-    </div>
-  )
-}
-
 // ── VerdictCard ───────────────────────────────────────────────────────────────
 
 export default function VerdictCard({ data1, data2 }: { data1: ActorData; data2: ActorData }) {
@@ -106,7 +37,6 @@ export default function VerdictCard({ data1, data2 }: { data1: ActorData; data2:
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -114,7 +44,7 @@ export default function VerdictCard({ data1, data2 }: { data1: ActorData; data2:
           observer.disconnect()
         }
       },
-      { threshold: 0.25 },
+      { threshold: 0.2 },
     )
     observer.observe(el)
     return () => observer.disconnect()
@@ -128,7 +58,6 @@ export default function VerdictCard({ data1, data2 }: { data1: ActorData; data2:
   const rat1 = calcAvgRating(data1.movies)
   const rat2 = calcAvgRating(data2.movies)
 
-  // Sequential reveal delays, one step per metric
   const METRICS = [
     { label: 'Films',            v1: p1.film_count,              v2: p2.film_count,              d1: String(p1.film_count),          d2: String(p2.film_count),          delay: 0.1 },
     { label: 'Years Active',     v1: yrs1,                       v2: yrs2,                       d1: String(yrs1),                   d2: String(yrs2),                   delay: 0.2 },
@@ -159,50 +88,88 @@ export default function VerdictCard({ data1, data2 }: { data1: ActorData; data2:
         )}
       </div>
 
-      {/* Metric rows */}
+      {/* Metrics — one shared-scale container per metric */}
       <div className="flex flex-col gap-5">
         {METRICS.map((m) => {
-          const maxV   = Math.max(m.v1, m.v2) || 1
-          const pct1   = (m.v1 / maxV) * 100
-          const pct2   = (m.v2 / maxV) * 100
-          const lead   = m.v1 > m.v2 ? 1 : m.v2 > m.v1 ? 2 : 0   // 0 = tie
+          const maxV = Math.max(m.v1, m.v2) || 1
+          const pct1 = (m.v1 / maxV) * 100   // leading actor is always 100 %
+          const pct2 = (m.v2 / maxV) * 100
+          const lead = m.v1 > m.v2 ? 1 : m.v2 > m.v1 ? 2 : 0  // 0 = tie
 
-          // Leading actor gets accent fill; trailing gets very dim grey
-          const leading1 = lead === 0 || lead === 1   // tie counts as both leading
-          const leading2 = lead === 0 || lead === 2
-          const fill1    = leading1 ? '#f59e0b'               : 'rgba(255,255,255,0.08)'
-          const fill2    = leading2 ? '#06b6d4'               : 'rgba(255,255,255,0.08)'
+          // Colors: leading actor → accent; trailing → dim grey; tie → both accent
+          const fill1 = (lead === 0 || lead === 1) ? '#f59e0b' : 'rgba(255,255,255,0.08)'
+          const fill2 = (lead === 0 || lead === 2) ? '#06b6d4' : 'rgba(255,255,255,0.08)'
+
+          // Text on coloured fill → white; text on dim fill → faded
+          const isLead1 = lead === 0 || lead === 1
+          const isLead2 = lead === 0 || lead === 2
+          const name1Color  = isLead1 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.40)'
+          const name2Color  = isLead2 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.40)'
+          const value1Color = isLead1 ? '#ffffff' : 'rgba(255,255,255,0.35)'
+          const value2Color = isLead2 ? '#ffffff' : 'rgba(255,255,255,0.35)'
 
           return (
             <div key={m.label} className="flex flex-col gap-2">
-              {/* Metric label */}
+
+              {/* Label */}
               <p className="text-[11px] text-white/35 uppercase tracking-widest text-center">
                 {m.label}
               </p>
 
-              {/* Actor 1 bar */}
-              <MetricBar
-                name={p1.name}
-                displayValue={m.d1}
-                pct={pct1}
-                color={fill1}
-                isLeading={leading1}
-                accentColor="#f59e0b"
-                animated={animated}
-                delay={m.delay}
-              />
+              {/* ── ONE shared-scale container ─────────────────────── */}
+              <div
+                className="rounded-xl overflow-hidden"
+                style={{ background: 'rgba(255,255,255,0.04)' }}
+              >
+                {/* Actor 1 row */}
+                <div className="relative h-11">
+                  {/* Fill — grows from 0 to pct1 on animate */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0"
+                    style={{
+                      width: animated ? `${pct1}%` : '0%',
+                      background: fill1,
+                      transition: `width 0.8s ease-out ${m.delay}s`,
+                    }}
+                  />
+                  {/* Name + value */}
+                  <div className="absolute inset-0 flex items-center justify-between px-4 z-10">
+                    <span className="text-sm font-semibold truncate pr-3" style={{ color: name1Color }}>
+                      {p1.name}
+                    </span>
+                    <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: value1Color }}>
+                      {m.d1}
+                    </span>
+                  </div>
+                </div>
 
-              {/* Actor 2 bar */}
-              <MetricBar
-                name={p2.name}
-                displayValue={m.d2}
-                pct={pct2}
-                color={fill2}
-                isLeading={leading2}
-                accentColor="#06b6d4"
-                animated={animated}
-                delay={m.delay}
-              />
+                {/* Divider between the two rows */}
+                <div className="mx-4" style={{ height: '1px', background: 'rgba(255,255,255,0.07)' }} />
+
+                {/* Actor 2 row */}
+                <div className="relative h-11">
+                  {/* Fill — grows from 0 to pct2 on animate */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0"
+                    style={{
+                      width: animated ? `${pct2}%` : '0%',
+                      background: fill2,
+                      transition: `width 0.8s ease-out ${m.delay}s`,
+                    }}
+                  />
+                  {/* Name + value */}
+                  <div className="absolute inset-0 flex items-center justify-between px-4 z-10">
+                    <span className="text-sm font-semibold truncate pr-3" style={{ color: name2Color }}>
+                      {p2.name}
+                    </span>
+                    <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: value2Color }}>
+                      {m.d2}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {/* ────────────────────────────────────────────────────── */}
+
             </div>
           )
         })}
