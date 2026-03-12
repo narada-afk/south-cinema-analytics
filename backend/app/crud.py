@@ -10,9 +10,10 @@
 #                get_actor_directors, get_actor_production,
 #                get_actor_compare_stats, get_health_counts
 #   Sprint 10  : get_top_collaborations
+#   Sprint 15  : get_insights
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, text
+from sqlalchemy import func, text, case
 from typing import Optional
 
 from . import models, schemas
@@ -53,13 +54,28 @@ def search_actors(db: Session, q: str, limit: int = 20) -> list:
     Case-insensitive partial-match search on actors.name.
 
     Uses ILIKE '%q%' — with a leading wildcard a btree index cannot be used,
-    but with only ~13 actors in the table a sequential scan completes in < 1 ms.
+    but the table is small enough that a sequential scan completes in < 1 ms.
     Returns at most `limit` results (default 20).
+
+    Ordering priority
+    -----------------
+    1. Exact name match (case-insensitive) — prevents "Aishwarya Rajinikanth"
+       ranking above "Rajinikanth" when the query is "rajinikanth".
+    2. Primary actors (is_primary_actor = True) — heroes before supporting cast.
+    3. Alphabetical tiebreaker.
     """
+    exact_first = case(
+        (func.lower(models.Actor.name) == q.lower(), 0),
+        else_=1,
+    )
     return (
         db.query(models.Actor.id, models.Actor.name)
         .filter(models.Actor.name.ilike(f"%{q}%"))
-        .order_by(models.Actor.name)
+        .order_by(
+            exact_first,
+            models.Actor.is_primary_actor.desc(),
+            models.Actor.name,
+        )
         .limit(limit)
         .all()
     )
@@ -299,6 +315,132 @@ def get_top_collaborations(db: Session, limit: int = 20) -> list:
     """)
     result = db.execute(sql, {"lim": limit})
     return result.fetchall()
+
+
+# ===========================================================================
+# Insight engine  (GET /analytics/insights)
+# ===========================================================================
+
+def get_insights(db: Session) -> list:
+    """
+    Build a mixed list of 8 dynamic cinema insight objects for the homepage.
+
+    Runs three independent queries and interleaves the results so the response
+    always has a variety of insight types:
+
+    1. Collaboration insights — actor pairs with the most shared films,
+       sourced from the precomputed actor_collaborations table.  The
+       ``actor1_id < actor2_id`` guard picks one canonical direction per pair.
+
+    2. Director partnership insights — actor + director duos with the highest
+       co-film counts, computed from actor_movies ⋈ movies.  Only combinations
+       with ≥ 4 films together qualify so every card represents a meaningful
+       long-term creative partnership.
+
+    3. Supporting actor insights — the most prolific supporting performers,
+       computed from actor_movies rows where role_type = 'supporting'.
+
+    Interleaving strategy
+    ---------------------
+    Zip the three lists together (collab, director, supporting, collab, …)
+    and take the first 8 entries.  With 5 rows per query this yields
+    3 collaborations + 3 directors + 2 supporting = 8 total, guaranteeing
+    a balanced mix without hardcoding per-type limits.
+
+    Returns
+    -------
+    list of plain dicts — converted to Insight Pydantic models in the route.
+    """
+    from itertools import zip_longest
+
+    # ── Query 1: Top actor-actor collaborations ──────────────────────────────
+    collab_rows = db.execute(text("""
+        SELECT
+            a1.name                AS actor1,
+            a2.name                AS actor2,
+            ac.collaboration_count
+        FROM   actor_collaborations ac
+        JOIN   actors a1 ON ac.actor1_id = a1.id
+        JOIN   actors a2 ON ac.actor2_id = a2.id
+        WHERE  ac.actor1_id < ac.actor2_id
+        ORDER  BY ac.collaboration_count DESC
+        LIMIT  5
+    """)).fetchall()
+
+    collab_insights = [
+        {
+            "type":     "collaboration",
+            "headline": f"{row.actor1} and {row.actor2} have appeared together in",
+            "value":    row.collaboration_count,
+            "unit":     "films",
+            "actors":   [row.actor1, row.actor2],
+        }
+        for row in collab_rows
+    ]
+
+    # ── Query 2: Actor-director partnerships ─────────────────────────────────
+    director_rows = db.execute(text("""
+        SELECT
+            a.name       AS actor,
+            m.director,
+            COUNT(*)     AS films
+        FROM   actor_movies am
+        JOIN   actors  a ON am.actor_id  = a.id
+        JOIN   movies  m ON am.movie_id  = m.id
+        WHERE  m.director IS NOT NULL
+          AND  m.director <> ''
+        GROUP  BY a.name, m.director
+        HAVING COUNT(*) >= 4
+        ORDER  BY films DESC
+        LIMIT  5
+    """)).fetchall()
+
+    director_insights = [
+        {
+            "type":     "director",
+            "headline": f"{row.actor}'s most frequent director is",
+            "value":    row.films,
+            "unit":     "films",
+            "actors":   [row.actor, row.director],
+        }
+        for row in director_rows
+    ]
+
+    # ── Query 3: Prolific supporting actors ──────────────────────────────────
+    supporting_rows = db.execute(text("""
+        SELECT
+            a.name,
+            COUNT(*) AS films
+        FROM   actor_movies am
+        JOIN   actors a ON am.actor_id = a.id
+        WHERE  am.role_type = 'supporting'
+        GROUP  BY a.name
+        ORDER  BY films DESC
+        LIMIT  5
+    """)).fetchall()
+
+    supporting_insights = [
+        {
+            "type":     "supporting",
+            "headline": f"{row.name} appears in",
+            "value":    row.films,
+            "unit":     "films",
+            "actors":   [row.name],
+        }
+        for row in supporting_rows
+    ]
+
+    # ── Interleave and cap at 8 ───────────────────────────────────────────────
+    interleaved: list = []
+    for c, d, s in zip_longest(collab_insights, director_insights, supporting_insights):
+        if c:
+            interleaved.append(c)
+        if d:
+            interleaved.append(d)
+        if s:
+            interleaved.append(s)
+
+    return interleaved[:8]
 
 
 # ===========================================================================

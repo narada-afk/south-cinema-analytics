@@ -9,6 +9,7 @@
 #                CollaboratorOut, DirectorCollabOut, ProductionOut,
 #                ActorCompareStats, CompareResponse, HealthOut
 #   Sprint 10  : Collaboration (GET /analytics/top-collaborations)
+#   Sprint 15  : Insight, InsightsOut (GET /analytics/insights)
 
 from pydantic import BaseModel
 from typing import Optional, List
@@ -151,6 +152,30 @@ class Collaboration(BaseModel):
     actor_1: str
     actor_2: str
     films: int
+
+
+class Insight(BaseModel):
+    """
+    One dynamic cinema fact for GET /analytics/insights.
+
+    Fields
+    ------
+    type     : category — "collaboration" | "director" | "supporting"
+    headline : sentence fragment describing the fact (value + unit appended by UI)
+    value    : the numeric stat (film count, collaboration count, etc.)
+    unit     : label for the value — always "films" in Sprint 15
+    actors   : names involved; 2 entries for collaborations/directors, 1 for supporting
+    """
+    type: str
+    headline: str
+    value: int
+    unit: str
+    actors: List[str]
+
+
+class InsightsOut(BaseModel):
+    """Response envelope for GET /analytics/insights."""
+    insights: List[Insight]
 
 
 # ===========================================================================

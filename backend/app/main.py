@@ -12,6 +12,7 @@
 #                /actors/{id}/directors, /actors/{id}/production,
 #                /compare (analytics-backed, O(1))
 #   Sprint 10  : /analytics/top-collaborations
+#   Sprint 15  : /analytics/insights
 
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -383,6 +384,55 @@ def compare_actors(
 # ===========================================================================
 # Analytics endpoints
 # ===========================================================================
+
+@app.get(
+    "/analytics/insights",
+    response_model=schemas.InsightsOut,
+    summary="Dynamic cinema insight cards for the homepage",
+    tags=["Analytics"],
+)
+def get_insights(db: Session = Depends(get_db)):
+    """
+    Returns 6–8 dynamic cinema facts drawn from three categories:
+
+    * **collaboration** — actor pairs with the most shared films (from the
+      precomputed `actor_collaborations` table).
+    * **director** — actor + director duos with ≥ 4 films together (from
+      `actor_movies ⋈ movies`).
+    * **supporting** — the most prolific supporting performers (from
+      `actor_movies` where `role_type = 'supporting'`).
+
+    Results are interleaved across the three types for homepage variety.
+    Capped at 8 items — enough to fill two rows of four insight cards.
+
+    Example response
+    ----------------
+    ```json
+    {
+      "insights": [
+        {
+          "type": "collaboration",
+          "headline": "Mohanlal and Mammootty have appeared together in",
+          "value": 60,
+          "unit": "films",
+          "actors": ["Mohanlal", "Mammootty"]
+        },
+        {
+          "type": "director",
+          "headline": "Mohanlal's most frequent director is",
+          "value": 36,
+          "unit": "films",
+          "actors": ["Mohanlal", "Priyadarshan"]
+        }
+      ]
+    }
+    ```
+    """
+    insights = crud.get_insights(db)
+    return schemas.InsightsOut(
+        insights=[schemas.Insight(**i) for i in insights]
+    )
+
 
 @app.get(
     "/analytics/top-collaborations",
