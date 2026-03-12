@@ -1057,26 +1057,6 @@ export default async function ComparePage({ params }: PageProps) {
           <VerdictCard data1={data1} data2={data2} />
         </section>
 
-        {/* ── Films Together ───────────────────────────────────── */}
-        <section>
-          <div className="flex items-baseline gap-3 mb-4">
-            <SectionLabel>🎬 Films Together</SectionLabel>
-            <span className="text-sm text-white/30 -mt-4 ml-1">
-              {sharedFilms.length} film{sharedFilms.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <FilmsTogether films={sharedFilms} name1={p1.name} name2={p2.name} />
-        </section>
-
-        {/* ── TASK 3: Shared Collaborators ─────────────────────── */}
-        <section>
-          <SectionLabel>🤝 Shared Collaborators</SectionLabel>
-          <p className="text-xs text-white/30 mb-4">
-            Actors who have worked with both {p1.name.split(' ')[0]} and {p2.name.split(' ')[0]}
-          </p>
-          <SharedCollaboratorsSection shared={sharedCollabs} name1={p1.name} name2={p2.name} />
-        </section>
-
         {/* ── TASK 4: Did You Know ─────────────────────────────── */}
         {insights.length > 0 && (
           <section>
@@ -1097,6 +1077,26 @@ export default async function ComparePage({ params }: PageProps) {
             name1={p1.name}
             name2={p2.name}
           />
+        </section>
+
+        {/* ── Films Together ───────────────────────────────────── */}
+        <section>
+          <div className="flex items-baseline gap-3 mb-4">
+            <SectionLabel>🎬 Films Together</SectionLabel>
+            <span className="text-sm text-white/30 -mt-4 ml-1">
+              {sharedFilms.length} film{sharedFilms.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <FilmsTogether films={sharedFilms} name1={p1.name} name2={p2.name} />
+        </section>
+
+        {/* ── TASK 3: Shared Collaborators ─────────────────────── */}
+        <section>
+          <SectionLabel>🤝 Shared Collaborators</SectionLabel>
+          <p className="text-xs text-white/30 mb-4">
+            Actors who have worked with both {p1.name.split(' ')[0]} and {p2.name.split(' ')[0]}
+          </p>
+          <SharedCollaboratorsSection shared={sharedCollabs} name1={p1.name} name2={p2.name} />
         </section>
 
         {/* ── TASK 6: Top Collaborators ────────────────────────── */}
