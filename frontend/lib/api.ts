@@ -59,7 +59,37 @@ export interface TopCollaboration {
   films: number
 }
 
+export interface Insight {
+  type: 'collaboration' | 'director' | 'supporting'
+  headline: string
+  value: number
+  unit: string
+  actors: string[]
+}
+
+export interface SharedFilm {
+  title: string
+  release_year: number
+  director: string | null
+  poster_url: string | null
+  vote_average: number | null
+  popularity: number | null
+  actor1_character: string | null
+  actor1_role: string | null
+  actor2_character: string | null
+  actor2_role: string | null
+}
+
 // ── Endpoints ────────────────────────────────────────────────────────────────
+
+export async function getInsights(industry?: string): Promise<Insight[]> {
+  const param =
+    industry && industry !== 'all' && industry !== 'explore'
+      ? `?industry=${encodeURIComponent(industry)}`
+      : ''
+  const data = await apiFetch<{ insights: Insight[] }>(`/analytics/insights${param}`)
+  return data.insights
+}
 
 export async function getTopCollaborations(
   limit = 5
@@ -91,4 +121,11 @@ export async function getActorCollaborators(id: number | string): Promise<Collab
 
 export async function getActorDirectors(id: number | string): Promise<DirectorCollab[]> {
   return apiFetch<DirectorCollab[]>(`/actors/${id}/directors`)
+}
+
+export async function getSharedFilms(
+  actor1Id: number | string,
+  actor2Id: number | string
+): Promise<SharedFilm[]> {
+  return apiFetch<SharedFilm[]>(`/actors/${actor1Id}/shared/${actor2Id}`)
 }

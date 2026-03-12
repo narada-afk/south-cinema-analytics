@@ -17,7 +17,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from .database import engine, get_db
 from . import models, crud, schemas
@@ -302,6 +302,76 @@ def get_actor_production(actor_id: int, db: Session = Depends(get_db)):
 
 
 # ===========================================================================
+# Shared films endpoint
+# ===========================================================================
+
+@app.get(
+    "/actors/{actor1_id}/shared/{actor2_id}",
+    response_model=List[schemas.SharedFilmOut],
+    summary="Films two actors have appeared in together",
+    tags=["Actors"],
+)
+def get_shared_films(
+    actor1_id: int,
+    actor2_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Returns all movies that both actors appeared in, ordered newest-first.
+
+    Each row includes:
+    * `title`, `release_year`, `director`, `poster_url`, `vote_average`
+    * `actor1_character` / `actor1_role` — character name and role type for actor 1
+    * `actor2_character` / `actor2_role` — character name and role type for actor 2
+
+    Character names come from the **actor_movies** table (TMDB pipeline).
+    Role types come from both **actor_movies** and **cast** (Wikidata pipeline).
+    Either field may be null if the enrichment pipelines have not yet run.
+
+    Example:
+    ```
+    GET /actors/3/shared/5
+    ```
+    ```json
+    [
+      {
+        "title": "Acharya",
+        "release_year": 2022,
+        "director": "Koratala Siva",
+        "poster_url": "https://image.tmdb.org/...",
+        "vote_average": 5.3,
+        "actor1_character": "Acharya",
+        "actor1_role": "Lead",
+        "actor2_character": "Siddha",
+        "actor2_role": "Lead"
+      }
+    ]
+    ```
+    """
+    if not crud.get_actor_by_id(db, actor1_id):
+        raise HTTPException(status_code=404, detail="Actor not found")
+    if not crud.get_actor_by_id(db, actor2_id):
+        raise HTTPException(status_code=404, detail="Actor not found")
+
+    rows = crud.get_shared_films(db, actor1_id, actor2_id)
+    return [
+        schemas.SharedFilmOut(
+            title=row.title,
+            release_year=row.release_year,
+            director=row.director,
+            poster_url=row.poster_url,
+            vote_average=row.vote_average,
+            popularity=row.popularity,
+            actor1_character=row.actor1_character,
+            actor1_role=row.actor1_role,
+            actor2_character=row.actor2_character,
+            actor2_role=row.actor2_role,
+        )
+        for row in rows
+    ]
+
+
+# ===========================================================================
 # Comparison endpoint
 # ===========================================================================
 
@@ -391,7 +461,16 @@ def compare_actors(
     summary="Dynamic cinema insight cards for the homepage",
     tags=["Analytics"],
 )
-def get_insights(db: Session = Depends(get_db)):
+def get_insights(
+    industry: Optional[str] = Query(
+        default=None,
+        description=(
+            "Filter insights by industry — 'telugu', 'tamil', 'malayalam', "
+            "'kannada'.  Omit or pass 'all' for the global cross-industry view."
+        ),
+    ),
+    db: Session = Depends(get_db),
+):
     """
     Returns 6–8 dynamic cinema facts drawn from three categories:
 
@@ -401,6 +480,9 @@ def get_insights(db: Session = Depends(get_db)):
       `actor_movies ⋈ movies`).
     * **supporting** — the most prolific supporting performers (from
       `actor_movies` where `role_type = 'supporting'`).
+
+    Pass `?industry=telugu` (or tamil / malayalam / kannada) to scope all
+    three queries to a single industry.  Omit the param for the global view.
 
     Results are interleaved across the three types for homepage variety.
     Capped at 8 items — enough to fill two rows of four insight cards.
@@ -428,7 +510,7 @@ def get_insights(db: Session = Depends(get_db)):
     }
     ```
     """
-    insights = crud.get_insights(db)
+    insights = crud.get_insights(db, industry=industry)
     return schemas.InsightsOut(
         insights=[schemas.Insight(**i) for i in insights]
     )

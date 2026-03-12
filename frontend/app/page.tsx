@@ -1,8 +1,12 @@
+// Force dynamic rendering so searchParams (?industry=…) is always fresh
+// and never served from the Next.js full-route cache.
+export const dynamic = 'force-dynamic'
+
 import Header from '@/components/Header'
 import NavTabs from '@/components/NavTabs'
 import InsightCard, { InsightCardData } from '@/components/InsightCard'
 import TrendingActors, { TrendingActor } from '@/components/TrendingActors'
-import { getTopCollaborations, getActors } from '@/lib/api'
+import { getInsights, getActors } from '@/lib/api'
 
 // Gradient palette — cycle through for variety
 const GRADIENTS: InsightCardData['gradient'][] = [
@@ -63,42 +67,72 @@ const FALLBACK_CARDS: InsightCardData[] = [
 
 // Fallback trending actors shown when /actors API is unavailable
 const FALLBACK_TRENDING: TrendingActor[] = [
-  { id: 1, name: 'Rajinikanth', avatarSlug: 'rajinikanth' },
-  { id: 2, name: 'Mohanlal', avatarSlug: 'mohanlal' },
-  { id: 3, name: 'Kamal Haasan', avatarSlug: 'kamalhaasan' },
-  { id: 4, name: 'Mammootty', avatarSlug: 'mammootty' },
-  { id: 5, name: 'Prabhas', avatarSlug: 'prabhas' },
-  { id: 6, name: 'Mahesh Babu', avatarSlug: 'maheshbabu' },
-  { id: 7, name: 'Allu Arjun', avatarSlug: 'alluarjun' },
-  { id: 8, name: 'Vijay', avatarSlug: 'vijay' },
+  { id: 1,  name: 'Rajinikanth',  avatarSlug: 'rajinikanth' },
+  { id: 2,  name: 'Mohanlal',     avatarSlug: 'mohanlal' },
+  { id: 3,  name: 'Kamal Haasan', avatarSlug: 'kamalhaasan' },
+  { id: 4,  name: 'Mammootty',    avatarSlug: 'mammootty' },
+  { id: 5,  name: 'Prabhas',      avatarSlug: 'prabhas' },
+  { id: 6,  name: 'Mahesh Babu',  avatarSlug: 'maheshbabu' },
+  { id: 7,  name: 'Allu Arjun',   avatarSlug: 'alluarjun' },
+  { id: 8,  name: 'Vijay',        avatarSlug: 'vijay' },
 ]
 
-async function fetchInsightCards(): Promise<InsightCardData[]> {
-  try {
-    const collabs = await getTopCollaborations(4)
-    if (!collabs.length) return FALLBACK_CARDS
+const INSIGHT_META: Record<
+  string,
+  { emoji: string; label: string }
+> = {
+  collaboration: { emoji: '🔥', label: 'Iconic Duo' },
+  director:      { emoji: '🎬', label: 'Director Partnership' },
+  supporting:    { emoji: '⭐', label: 'Supporting Legend' },
+}
 
-    return collabs.map((c, i) => ({
-      emoji: i === 0 ? '🔥' : i === 1 ? '🎭' : i === 2 ? '🌟' : '🎬',
-      label: i === 0 ? 'Legendary Duo' : 'Iconic Pair',
-      headline: `${c.actor_1} + ${c.actor_2} appeared together in`,
-      stat: `${c.films} films`,
-      subtext: 'Top co-starring pair',
-      actors: [{ name: c.actor_1 }, { name: c.actor_2 }],
-      gradient: GRADIENTS[i % GRADIENTS.length],
-      href: `/compare/${toSlug(c.actor_1)}-vs-${toSlug(c.actor_2)}`,
-    }))
+async function fetchInsightCards(industry?: string): Promise<InsightCardData[]> {
+  try {
+    const insights = await getInsights(industry)
+    if (!insights.length) return FALLBACK_CARDS
+
+    return insights.map((insight, i) => {
+      const meta = INSIGHT_META[insight.type] ?? { emoji: '🎭', label: 'Cinema Fact' }
+
+      // Build a compare URL for actor pairs; fall back to # for director/supporting
+      const href =
+        insight.type === 'collaboration' && insight.actors.length === 2
+          ? `/compare/${toSlug(insight.actors[0])}-vs-${toSlug(insight.actors[1])}`
+          : '#'
+
+      return {
+        emoji:    meta.emoji,
+        label:    meta.label,
+        headline: insight.headline,
+        stat:     `${insight.value} ${insight.unit}`,
+        // Show up to 2 actor avatars; for director cards show only the actor (index 0)
+        actors:   insight.actors
+          .slice(0, insight.type === 'director' ? 1 : 2)
+          .map((name) => ({ name })),
+        gradient: GRADIENTS[i % GRADIENTS.length],
+        href,
+      }
+    })
   } catch {
     return FALLBACK_CARDS
   }
 }
 
-async function fetchTrendingActors(): Promise<TrendingActor[]> {
+async function fetchTrendingActors(industry?: string): Promise<TrendingActor[]> {
   try {
     const actors = await getActors()
     if (!actors.length) return FALLBACK_TRENDING
 
-    return actors.map((a) => ({
+    // Filter by industry when a tab is selected (case-insensitive match)
+    const filtered =
+      industry && industry !== 'all'
+        ? actors.filter(
+            (a) => a.industry?.toLowerCase() === industry.toLowerCase()
+          )
+        : actors
+
+    // Cap at 20 for the horizontal scroll row
+    return filtered.slice(0, 20).map((a) => ({
       id: a.id,
       name: a.name,
     }))
@@ -107,10 +141,17 @@ async function fetchTrendingActors(): Promise<TrendingActor[]> {
   }
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams?: { industry?: string }
+}) {
+  // Read the active industry from the URL (?industry=telugu) or default to 'all'
+  const industry = searchParams?.industry ?? 'all'
+
   const [insightCards, trendingActors] = await Promise.all([
-    fetchInsightCards(),
-    fetchTrendingActors(),
+    fetchInsightCards(industry),
+    fetchTrendingActors(industry),
   ])
 
   return (
@@ -120,7 +161,7 @@ export default async function HomePage() {
 
       {/* Glass Nav — aligned to same container */}
       <div className="max-w-[1200px] mx-auto px-6">
-        <NavTabs />
+        <NavTabs activeIndustry={industry} />
       </div>
 
       {/* Page content */}
@@ -138,7 +179,7 @@ export default async function HomePage() {
         </div>
       </main>
 
-      {/* Trending Actors Row — same container */}
+      {/* Trending Actors Row — filtered by industry */}
       <TrendingActors actors={trendingActors} />
 
       <div className="h-16" />

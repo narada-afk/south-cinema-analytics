@@ -321,7 +321,7 @@ def get_top_collaborations(db: Session, limit: int = 20) -> list:
 # Insight engine  (GET /analytics/insights)
 # ===========================================================================
 
-def get_insights(db: Session) -> list:
+def get_insights(db: Session, industry: Optional[str] = None) -> list:
     """
     Build a mixed list of 8 dynamic cinema insight objects for the homepage.
 
@@ -333,12 +333,19 @@ def get_insights(db: Session) -> list:
        ``actor1_id < actor2_id`` guard picks one canonical direction per pair.
 
     2. Director partnership insights — actor + director duos with the highest
-       co-film counts, computed from actor_movies ⋈ movies.  Only combinations
-       with ≥ 4 films together qualify so every card represents a meaningful
-       long-term creative partnership.
+       co-film counts, computed from actor_movies ⋈ movies.
 
     3. Supporting actor insights — the most prolific supporting performers,
        computed from actor_movies rows where role_type = 'supporting'.
+
+    Parameters
+    ----------
+    industry : Optional industry filter (e.g. "telugu", "tamil").  Pass None
+               or "all" for the cross-industry global view.  Matching is
+               case-insensitive against the actors.industry column.
+               When a specific industry is selected the director HAVING
+               threshold is relaxed from 4 → 2 to ensure results even for
+               smaller industries (e.g. Kannada).
 
     Interleaving strategy
     ---------------------
@@ -353,6 +360,17 @@ def get_insights(db: Session) -> list:
     """
     from itertools import zip_longest
 
+    # Normalise: None / "all" / "explore" → no filter
+    ind = (
+        industry.lower()
+        if industry and industry.lower() not in ("all", "explore")
+        else None
+    )
+
+    # Relax the director co-film threshold for industry-specific views so
+    # smaller industries (Kannada, etc.) still return results.
+    dir_threshold = 2 if ind else 4
+
     # ── Query 1: Top actor-actor collaborations ──────────────────────────────
     collab_rows = db.execute(text("""
         SELECT
@@ -363,9 +381,11 @@ def get_insights(db: Session) -> list:
         JOIN   actors a1 ON ac.actor1_id = a1.id
         JOIN   actors a2 ON ac.actor2_id = a2.id
         WHERE  ac.actor1_id < ac.actor2_id
+          AND  (:ind IS NULL OR LOWER(a1.industry) = :ind)
+          AND  (:ind IS NULL OR LOWER(a2.industry) = :ind)
         ORDER  BY ac.collaboration_count DESC
         LIMIT  5
-    """)).fetchall()
+    """), {"ind": ind}).fetchall()
 
     collab_insights = [
         {
@@ -389,11 +409,12 @@ def get_insights(db: Session) -> list:
         JOIN   movies  m ON am.movie_id  = m.id
         WHERE  m.director IS NOT NULL
           AND  m.director <> ''
+          AND  (:ind IS NULL OR LOWER(a.industry) = :ind)
         GROUP  BY a.name, m.director
-        HAVING COUNT(*) >= 4
+        HAVING COUNT(*) >= :threshold
         ORDER  BY films DESC
         LIMIT  5
-    """)).fetchall()
+    """), {"ind": ind, "threshold": dir_threshold}).fetchall()
 
     director_insights = [
         {
@@ -414,10 +435,11 @@ def get_insights(db: Session) -> list:
         FROM   actor_movies am
         JOIN   actors a ON am.actor_id = a.id
         WHERE  am.role_type = 'supporting'
+          AND  (:ind IS NULL OR LOWER(a.industry) = :ind)
         GROUP  BY a.name
         ORDER  BY films DESC
         LIMIT  5
-    """)).fetchall()
+    """), {"ind": ind}).fetchall()
 
     supporting_insights = [
         {
@@ -441,6 +463,53 @@ def get_insights(db: Session) -> list:
             interleaved.append(s)
 
     return interleaved[:8]
+
+
+# ===========================================================================
+# Shared films  (GET /actors/{actor1_id}/shared/{actor2_id})
+# ===========================================================================
+
+def get_shared_films(db: Session, actor1_id: int, actor2_id: int) -> list:
+    """
+    Return movies that both actors have appeared in together, ordered newest-first.
+
+    Searches across both ingestion pipelines:
+      • "cast"        — Wikidata-sourced links (original 13 actors);
+                        has role_type but no character_name
+      • actor_movies  — TMDB-sourced links (supporting + Malayalam);
+                        has role_type AND character_name
+
+    Uses LEFT JOINs on both tables for each actor so we can collect their
+    role_type and character_name in the same row.  COALESCE prefers the
+    TMDB data (actor_movies) since it has richer character info.
+
+    A movie qualifies only if at least one link for each actor exists —
+    it does not matter which pipeline produced each link.
+    """
+    sql = text("""
+        SELECT
+            m.title,
+            m.release_year,
+            m.director,
+            m.poster_url,
+            m.vote_average,
+            m.popularity,
+            -- Actor 1: prefer TMDB character name; fall back to Wikidata role_type
+            COALESCE(am1.character_name)                        AS actor1_character,
+            COALESCE(am1.role_type, c1.role_type)               AS actor1_role,
+            -- Actor 2: same
+            COALESCE(am2.character_name)                        AS actor2_character,
+            COALESCE(am2.role_type, c2.role_type)               AS actor2_role
+        FROM   movies m
+        LEFT JOIN actor_movies am1 ON am1.movie_id = m.id AND am1.actor_id = :a1
+        LEFT JOIN "cast"       c1  ON c1.movie_id  = m.id AND c1.actor_id  = :a1
+        LEFT JOIN actor_movies am2 ON am2.movie_id = m.id AND am2.actor_id = :a2
+        LEFT JOIN "cast"       c2  ON c2.movie_id  = m.id AND c2.actor_id  = :a2
+        WHERE (am1.actor_id IS NOT NULL OR c1.actor_id IS NOT NULL)
+          AND (am2.actor_id IS NOT NULL OR c2.actor_id IS NOT NULL)
+        ORDER BY m.release_year DESC
+    """)
+    return db.execute(sql, {"a1": actor1_id, "a2": actor2_id}).fetchall()
 
 
 # ===========================================================================

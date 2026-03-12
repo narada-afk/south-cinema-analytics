@@ -178,6 +178,39 @@ class InsightsOut(BaseModel):
     insights: List[Insight]
 
 
+class SharedFilmOut(BaseModel):
+    """
+    One movie that two actors both appeared in.
+    Returned by GET /actors/{actor1_id}/shared/{actor2_id}.
+
+    Fields
+    ------
+    title            : movie title
+    release_year     : release year (0 = unknown)
+    director         : director name (legacy TEXT column)
+    poster_url       : TMDB poster URL (null until TMDB enrichment runs)
+    vote_average     : TMDB vote average 0–10 (null until enrichment)
+    popularity       : TMDB popularity score (null until enrichment)
+    actor1_character : character name actor 1 played (from actor_movies; null for cast-only rows)
+    actor1_role      : role type for actor 1 — "Lead" / "Supporting" / null
+    actor2_character : character name actor 2 played (from actor_movies; null for cast-only rows)
+    actor2_role      : role type for actor 2 — "Lead" / "Supporting" / null
+    """
+    title: str
+    release_year: int
+    director: Optional[str] = None
+    poster_url: Optional[str] = None
+    vote_average: Optional[float] = None
+    popularity: Optional[float] = None
+    actor1_character: Optional[str] = None
+    actor1_role: Optional[str] = None
+    actor2_character: Optional[str] = None
+    actor2_role: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ===========================================================================
 # Comparison Schemas  (Sprint 6 — uses analytics tables, O(1) reads)
 # ===========================================================================

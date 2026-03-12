@@ -12,10 +12,12 @@ import {
   getActorMovies,
   getActorCollaborators,
   getActorDirectors,
+  getSharedFilms,
   type ActorProfile,
   type ActorMovie,
   type Collaborator,
   type DirectorCollab,
+  type SharedFilm,
 } from '@/lib/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -303,6 +305,180 @@ function FilmPreview({
   )
 }
 
+// ── Films Together section ────────────────────────────────────────────────────
+
+function FilmsTogether({
+  films,
+  name1,
+  name2,
+}: {
+  films: SharedFilm[]
+  name1: string
+  name2: string
+}) {
+  if (!films.length) {
+    return (
+      <div className="glass rounded-2xl px-6 py-8 text-center text-white/30 text-sm">
+        No shared films found in the database.
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {films.map((film, i) => {
+        const hasRating =
+          film.vote_average !== null &&
+          film.vote_average !== undefined &&
+          film.vote_average > 0
+        const rating = hasRating ? film.vote_average!.toFixed(1) : null
+
+        return (
+          <div
+            key={`${film.title}-${i}`}
+            className="glass rounded-2xl flex gap-4 overflow-hidden hover:bg-white/[0.06] transition-colors"
+          >
+            {/* Poster thumbnail */}
+            <div className="relative flex-shrink-0 w-16 aspect-[2/3] bg-[#1a1a24]">
+              {film.poster_url ? (
+                <Image
+                  src={film.poster_url}
+                  alt={film.title}
+                  fill
+                  sizes="64px"
+                  className="object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white/10 text-xs text-center p-1">
+                  🎬
+                </div>
+              )}
+            </div>
+
+            {/* Details */}
+            <div className="flex flex-col gap-2 py-4 pr-4 flex-1 min-w-0">
+              {/* Title + year */}
+              <div className="flex items-baseline gap-2">
+                <span className="font-semibold text-white/90 text-sm leading-snug">
+                  {film.title}
+                </span>
+                <span className="text-xs text-white/30 flex-shrink-0">
+                  {film.release_year > 0 ? film.release_year : ''}
+                </span>
+                {rating && (
+                  <span className="text-xs text-yellow-400 flex-shrink-0 ml-auto">
+                    ★ {rating}
+                  </span>
+                )}
+              </div>
+
+              {/* Director */}
+              {film.director && (
+                <p className="text-xs text-white/40">Dir. {film.director}</p>
+              )}
+
+              {/* Role pills for both actors */}
+              <div className="flex flex-wrap gap-2 mt-1">
+                <RolePill
+                  actorName={name1}
+                  character={film.actor1_character}
+                  role={film.actor1_role}
+                />
+                <RolePill
+                  actorName={name2}
+                  character={film.actor2_character}
+                  role={film.actor2_role}
+                />
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Normalise internal role_type strings to a human-friendly display label.
+ * "primary" = TMDB pipeline term for one of the 13 seeded actors (Lead).
+ * "supporting" stays as "Supporting". Null → null (handled by caller).
+ */
+function normaliseRole(role: string | null): string | null {
+  if (!role) return null
+  const lower = role.toLowerCase()
+  if (lower === 'primary' || lower === 'lead') return 'Lead'
+  if (lower === 'supporting') return 'Supporting'
+  return role.charAt(0).toUpperCase() + role.slice(1)
+}
+
+/**
+ * Detect voice/narration roles from the TMDB character name string.
+ * e.g. "Self - Narrator (voice)", "Voice of Simba"
+ */
+function isVoiceRole(character: string | null): boolean {
+  if (!character) return false
+  const lower = character.toLowerCase()
+  return lower.includes('voice') || lower.includes('narrator')
+}
+
+/** Small pill showing an actor's character name and/or role type. */
+function RolePill({
+  actorName,
+  character,
+  role,
+}: {
+  actorName: string
+  character: string | null
+  role: string | null
+}) {
+  const firstName = actorName.split(' ')[0]
+
+  // Voice/narration roles: detect from TMDB character name (most reliable)
+  if (isVoiceRole(character)) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-blue-500/15 text-blue-400">
+        {firstName} · Voice / Narrator
+      </span>
+    )
+  }
+
+  // When there's no TMDB character data (character is null), the role comes from
+  // Wikidata's cast table which doesn't distinguish voiceovers — don't show it
+  // as "Lead" since that may be inaccurate (e.g. Mahesh Babu's voiceover in Acharya).
+  if (!character) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-white/[0.06] text-white/40">
+        {firstName}
+      </span>
+    )
+  }
+
+  const displayRole = normaliseRole(role)
+  let label: string
+  if (displayRole) {
+    label = `${character} · ${displayRole}`
+  } else {
+    label = character
+  }
+
+  const isLead = displayRole === 'Lead'
+
+  return (
+    <span
+      className={`
+        inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium
+        ${isLead
+          ? 'bg-emerald-500/15 text-emerald-400'
+          : 'bg-white/[0.06] text-white/50'
+        }
+      `}
+    >
+      {label}
+    </span>
+  )
+}
+
+
 // ── Metadata ──────────────────────────────────────────────────────────────────
 
 export async function generateMetadata({ params }: PageProps) {
@@ -330,6 +506,12 @@ export default async function ComparePage({ params }: PageProps) {
 
   const films1 = topMovies(data1.movies, 6)
   const films2 = topMovies(data2.movies, 6)
+
+  // Fetch films both actors share — uses both actors' database IDs
+  const sharedFilms = await getSharedFilms(
+    data1.profile.id,
+    data2.profile.id,
+  ).catch(() => [] as SharedFilm[])
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
@@ -382,6 +564,21 @@ export default async function ComparePage({ params }: PageProps) {
         <section className="flex flex-col gap-4">
           <h2 className="text-lg font-bold text-white/80">Who leads?</h2>
           <StatTable data1={data1} data2={data2} />
+        </section>
+
+        {/* ── Films Together ─────────────────────────────────────── */}
+        <section className="flex flex-col gap-4">
+          <div className="flex items-baseline gap-3">
+            <h2 className="text-lg font-bold text-white/80">Films Together</h2>
+            <span className="text-sm text-white/30">
+              {sharedFilms.length} film{sharedFilms.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <FilmsTogether
+            films={sharedFilms}
+            name1={data1.profile.name}
+            name2={data2.profile.name}
+          />
         </section>
 
         {/* ── Top Collaborators ──────────────────────────────────── */}
