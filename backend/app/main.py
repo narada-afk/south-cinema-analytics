@@ -11,6 +11,8 @@
 #                /actors/{id}/movies (enriched + ordered), /actors/{id}/collaborators,
 #                /actors/{id}/directors, /actors/{id}/production,
 #                /compare (analytics-backed, O(1))
+#   Sprint 10  : /analytics/top-collaborations
+#   Sprint 15  : /analytics/insights
 
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -377,3 +379,107 @@ def compare_actors(
             last_film=s2.last_film_year,
         ),
     )
+
+
+# ===========================================================================
+# Analytics endpoints
+# ===========================================================================
+
+@app.get(
+    "/analytics/insights",
+    response_model=schemas.InsightsOut,
+    summary="Dynamic cinema insight cards for the homepage",
+    tags=["Analytics"],
+)
+def get_insights(db: Session = Depends(get_db)):
+    """
+    Returns 6–8 dynamic cinema facts drawn from three categories:
+
+    * **collaboration** — actor pairs with the most shared films (from the
+      precomputed `actor_collaborations` table).
+    * **director** — actor + director duos with ≥ 4 films together (from
+      `actor_movies ⋈ movies`).
+    * **supporting** — the most prolific supporting performers (from
+      `actor_movies` where `role_type = 'supporting'`).
+
+    Results are interleaved across the three types for homepage variety.
+    Capped at 8 items — enough to fill two rows of four insight cards.
+
+    Example response
+    ----------------
+    ```json
+    {
+      "insights": [
+        {
+          "type": "collaboration",
+          "headline": "Mohanlal and Mammootty have appeared together in",
+          "value": 60,
+          "unit": "films",
+          "actors": ["Mohanlal", "Mammootty"]
+        },
+        {
+          "type": "director",
+          "headline": "Mohanlal's most frequent director is",
+          "value": 36,
+          "unit": "films",
+          "actors": ["Mohanlal", "Priyadarshan"]
+        }
+      ]
+    }
+    ```
+    """
+    insights = crud.get_insights(db)
+    return schemas.InsightsOut(
+        insights=[schemas.Insight(**i) for i in insights]
+    )
+
+
+@app.get(
+    "/analytics/top-collaborations",
+    response_model=List[schemas.Collaboration],
+    summary="Actor pairs with the most shared films",
+    tags=["Analytics"],
+)
+def top_collaborations(
+    limit: int = Query(
+        default=20,
+        ge=1,
+        le=100,
+        description="Maximum number of pairs to return (1–100, default 20)",
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns the top actor pairs ranked by how many films they appeared in together.
+
+    Data is read from the **actor_collaborations** precomputed table, which
+    covers both the Wikidata pipeline (original 13 actors) and the TMDB pipeline
+    (supporting actors + Malayalam stars).  Run
+    `python -m data_pipeline.build_analytics_tables` to refresh the table after
+    new actors are ingested.
+
+    Query parameters
+    ----------------
+    * **limit** — number of pairs to return (default 20, max 100)
+
+    Example requests
+    ----------------
+    ```
+    GET /analytics/top-collaborations
+    GET /analytics/top-collaborations?limit=10
+    ```
+
+    Example response
+    ----------------
+    ```json
+    [
+      {"actor_1": "Mohanlal", "actor_2": "Mammootty",          "films": 60},
+      {"actor_1": "Rajinikanth", "actor_2": "Nassar",          "films": 18}
+    ]
+    ```
+    """
+    rows = crud.get_top_collaborations(db, limit=limit)
+    return [
+        schemas.Collaboration(actor_1=row.actor_1, actor_2=row.actor_2, films=row.films)
+        for row in rows
+    ]
