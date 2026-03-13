@@ -1,21 +1,27 @@
 'use client'
 
 /**
- * CinemaUniverse v2 — Force-Directed Collaboration Graph
+ * CinemaUniverse v3 — D3-style force-directed graph
  *
- * Improvements over v1:
- *  - Industry cluster layout  → Tamil ↖ · Telugu ↙ · Malayalam ↗ · Kannada ↘
- *  - √ node sizing            → costar_count on a sqrt scale (no giant nodes)
- *  - Edge opacity 0.08        → very subtle at rest, brightens on hover
- *  - Hover                    → highlight actor + direct co-stars, fade everything else
- *  - Click zoom               → viewport scales to fit the actor's neighborhood
- *  - Initial view             → top-80 actors, toggle to show all
+ * Forces:
+ *  - forceManyBody  strength -700  (1/d² repulsion — nodes spread naturally)
+ *  - forceCluster   strength 0.05  (industry anchor pull)
+ *  - forceCenter    strength 0.005 (drift prevention only — NOT a collapsing gravity)
+ *  - forceLink      spring @ 120 px
+ *
+ * Visual:
+ *  - Node size   = √collaborators × 2
+ *  - Edges       = 3+ shared films · opacity 0.04 · 1 px · highlight on hover
+ *  - Labels      = hover / zoomed-neighbourhood only
+ *
+ * Layout: simulation runs in centred coordinates, then bounding-box-normalised
+ * to fill the canvas — so the graph always uses all available space.
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { type CinemaUniverse as UniverseData, type UniverseNode, type UniverseEdge } from '@/lib/api'
 
-// ── Colors ─────────────────────────────────────────────────────────────────────
+// ── Palette ─────────────────────────────────────────────────────────────────────
 
 const IND_COLOR: Record<string, string> = {
   Tamil:     '#f43f5e',
@@ -25,29 +31,32 @@ const IND_COLOR: Record<string, string> = {
   Unknown:   '#6b7280',
 }
 
-// ── Cluster centers (0–1 normalised) ──────────────────────────────────────────
+// ── Cluster anchors (centred simulation space)  Tamil↖ Telugu↙ Malayalam↗ Kannada↘
 
-const CLUSTER_NX: Record<string, number> = {
-  Tamil: 0.26, Telugu: 0.26, Malayalam: 0.74, Kannada: 0.74, Unknown: 0.50,
+const ANCHOR_X: Record<string, number> = {
+  Tamil: -500, Telugu: -500, Malayalam: 500, Kannada: 500, Unknown: 0,
 }
-const CLUSTER_NY: Record<string, number> = {
-  Tamil: 0.32, Telugu: 0.68, Malayalam: 0.32, Kannada: 0.68, Unknown: 0.50,
+const ANCHOR_Y: Record<string, number> = {
+  Tamil: -250, Telugu: 250, Malayalam: -250, Kannada: 250, Unknown: 0,
 }
 
 const INITIAL_LIMIT = 80
 
-// ── Simulation ─────────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────────
 
-interface SimNode extends UniverseNode {
-  x: number; y: number
-}
+interface SimNode extends UniverseNode { x: number; y: number; vx: number; vy: number }
+interface ZoomT       { scale: number; tx: number; ty: number }
+interface ZoomedState { actorId: number; nodeIds: Set<number> }
 
-// ── Force parameters ──────────────────────────────────────────────────────────
-const NODE_REPULSION = 10000  // Coulomb constant — how hard nodes push apart
-const LINK_DIST      = 150    // preferred edge length in pixels
-const LINK_STR       = 0.06   // spring stiffness (weak; many edges → keep low)
-const CLUSTER_STR    = 0.030  // industry cluster pull strength
-const QUAD_STR       = 0.045  // quadrant confinement — pulls nodes back across midline
+// ── Node radius: √(costar_count / max) × 18  ────────────────────────────────────
+// The raw costar_count in our dataset reaches 300-600 (TMDB ingests every credited
+// actor), so we normalise against the maximum to keep radii in a 3–18 px range.
+// This preserves the √-scale "major actors appear larger" intent from the spec.
+
+const nodeR = (n: UniverseNode, maxCS: number) =>
+  Math.max(3, Math.sqrt(n.costar_count / Math.max(maxCS, 1)) * 18)
+
+// ── Force simulation (D3-style velocity integration) ────────────────────────────
 
 function runForceLayout(
   nodes: SimNode[],
@@ -57,86 +66,88 @@ function runForceLayout(
   iters = 2000,
 ) {
   const N = nodes.length
-  if (N === 0) return
+  if (!N) return
 
   const idx: Record<number, number> = {}
   nodes.forEach((n, i) => { idx[n.id] = i })
 
-  // Larger initial max-displacement so nodes can travel further before cooling
-  const maxD = Math.min(W, H) / 5
-  const fdx  = new Float64Array(N)
-  const fdy  = new Float64Array(N)
+  // Force constants — matching the D3 description in the spec
+  const REPULSION   = 700    // forceManyBody strength (per pair, 1/d²)
+  const CENTER_STR  = 0.005  // forceCenter — drift prevention only, not collapsing
+  const CLUSTER_STR = 0.05   // per-industry anchor pull
+  const LINK_DIST   = 120    // forceLink ideal distance (sim-space px)
+  const LINK_STR    = 0.03   // link spring stiffness
+  const VEL_DECAY   = 0.6    // velocity retained per step (D3 default 1 − 0.4 = 0.6)
+
+  // Alpha cooling: 1 → 0.001 over iters steps  (D3-style)
+  const alphaDecay = 1 - Math.pow(0.001, 1 / iters)
+  let alpha = 1.0
 
   for (let it = 0; it < iters; it++) {
-    // Power-1.5 cooling: fast at first, slow fine-tuning at the tail
-    const temp = maxD * Math.pow(Math.max(0, 1 - it / iters), 1.5)
-    // Cluster pull: strong early (holds industry groups apart), eases to a floor
-    const clF = CLUSTER_STR * Math.max(0.50, 1 - (it / iters) * 0.50)
-    fdx.fill(0); fdy.fill(0)
+    alpha -= alpha * alphaDecay
 
-    // ── Repulsion: F = NODE_REPULSION / d  (Coulomb 1/d, not 1/d²) ──────────
+    // ── Repulsion: F = REPULSION × alpha / d²  (forceManyBody) ──────────────
     for (let i = 0; i < N; i++) {
       for (let j = i + 1; j < N; j++) {
-        const ex = nodes[j].x - nodes[i].x
-        const ey = nodes[j].y - nodes[i].y
-        const d  = Math.sqrt(ex * ex + ey * ey) || 0.1
-        const f  = NODE_REPULSION / d
-        fdx[i] -= f * ex / d;  fdy[i] -= f * ey / d
-        fdx[j] += f * ex / d;  fdy[j] += f * ey / d
+        const dx = nodes[j].x - nodes[i].x
+        const dy = nodes[j].y - nodes[i].y
+        const d2 = Math.max(dx * dx + dy * dy, 1)
+        const d  = Math.sqrt(d2)
+        const f  = REPULSION * alpha / d2
+        const fx = f * dx / d, fy = f * dy / d
+        nodes[i].vx -= fx;  nodes[i].vy -= fy
+        nodes[j].vx += fx;  nodes[j].vy += fy
       }
     }
 
-    // ── Link spring: pulls toward LINK_DIST (attractive only when d > LINK_DIST)
+    // ── Link spring (attractive only beyond LINK_DIST) ───────────────────────
     for (const e of edges) {
       const si = idx[e.source], ti = idx[e.target]
       if (si == null || ti == null) continue
-      const ex = nodes[ti].x - nodes[si].x
-      const ey = nodes[ti].y - nodes[si].y
-      const d  = Math.sqrt(ex * ex + ey * ey) || 0.1
-      if (d <= LINK_DIST) continue                 // already within ideal range
-      const f  = LINK_STR * (d - LINK_DIST)
-      fdx[si] += f * ex / d;  fdy[si] += f * ey / d
-      fdx[ti] -= f * ex / d;  fdy[ti] -= f * ey / d
+      const dx = nodes[ti].x - nodes[si].x
+      const dy = nodes[ti].y - nodes[si].y
+      const d  = Math.sqrt(dx * dx + dy * dy) || 0.1
+      if (d <= LINK_DIST) continue
+      const f  = LINK_STR * (d - LINK_DIST) * alpha
+      nodes[si].vx += f * dx / d;  nodes[si].vy += f * dy / d
+      nodes[ti].vx -= f * dx / d;  nodes[ti].vy -= f * dy / d
     }
 
-    // ── Soft outer wall repulsion (prevents pileup at canvas edges) ──────────
-    const WALL_R = 1800, WALL_E = 130
-    for (let i = 0; i < N; i++) {
-      if (nodes[i].x < WALL_E)       fdx[i] += WALL_R * Math.max(0, 1 - nodes[i].x / WALL_E)
-      if (nodes[i].x > W - WALL_E)   fdx[i] -= WALL_R * Math.max(0, 1 - (W - nodes[i].x) / WALL_E)
-      if (nodes[i].y < WALL_E)       fdy[i] += WALL_R * Math.max(0, 1 - nodes[i].y / WALL_E)
-      if (nodes[i].y > H - WALL_E)   fdy[i] -= WALL_R * Math.max(0, 1 - (H - nodes[i].y) / WALL_E)
+    // ── Cluster gravity: pull toward industry anchor ──────────────────────────
+    for (const n of nodes) {
+      const ind = ANCHOR_X[n.industry] !== undefined ? n.industry : 'Unknown'
+      n.vx += (ANCHOR_X[ind] - n.x) * CLUSTER_STR * alpha
+      n.vy += (ANCHOR_Y[ind] - n.y) * CLUSTER_STR * alpha
     }
 
-    // ── Apply displacement + industry cluster pull + quadrant confinement ────
-    for (let i = 0; i < N; i++) {
-      const disp = Math.sqrt(fdx[i] * fdx[i] + fdy[i] * fdy[i]) || 0.1
-      nodes[i].x += (fdx[i] / disp) * Math.min(disp, temp)
-      nodes[i].y += (fdy[i] / disp) * Math.min(disp, temp)
+    // ── Centre gravity: very weak, prevents infinite drift ───────────────────
+    for (const n of nodes) {
+      n.vx -= n.x * CENTER_STR * alpha
+      n.vy -= n.y * CENTER_STR * alpha
+    }
 
-      const ind = CLUSTER_NX[nodes[i].industry] !== undefined ? nodes[i].industry : 'Unknown'
-      nodes[i].x += (CLUSTER_NX[ind] * W - nodes[i].x) * clF
-      nodes[i].y += (CLUSTER_NY[ind] * H - nodes[i].y) * clF
-
-      // Quadrant confinement: correct nodes that cross the canvas mid-lines
-      if (ind !== 'Unknown') {
-        const isLeft = ind === 'Tamil' || ind === 'Telugu'
-        const isTop  = ind === 'Tamil' || ind === 'Malayalam'
-        if ( isLeft && nodes[i].x > W / 2) nodes[i].x -= (nodes[i].x - W / 2) * QUAD_STR
-        if (!isLeft && nodes[i].x < W / 2) nodes[i].x += (W / 2 - nodes[i].x) * QUAD_STR
-        if ( isTop  && nodes[i].y > H / 2) nodes[i].y -= (nodes[i].y - H / 2) * QUAD_STR
-        if (!isTop  && nodes[i].y < H / 2) nodes[i].y += (H / 2 - nodes[i].y) * QUAD_STR
-      }
-
-      nodes[i].x = Math.max(22, Math.min(W - 22, nodes[i].x))
-      nodes[i].y = Math.max(22, Math.min(H - 22, nodes[i].y))
+    // ── Integrate ────────────────────────────────────────────────────────────
+    for (const n of nodes) {
+      n.vx *= VEL_DECAY;  n.vy *= VEL_DECAY
+      n.x  += n.vx;       n.y  += n.vy
     }
   }
+
+  // ── Normalise: fit final bounding box into canvas with padding ───────────────
+  const pad = 55
+  const xs  = nodes.map(n => n.x), ys = nodes.map(n => n.y)
+  const x0  = Math.min(...xs), x1 = Math.max(...xs)
+  const y0  = Math.min(...ys), y1 = Math.max(...ys)
+  const sc  = Math.min(
+    (W - 2 * pad) / Math.max(x1 - x0, 1),
+    (H - 2 * pad) / Math.max(y1 - y0, 1),
+  )
+  const ox = W / 2 - ((x0 + x1) / 2) * sc
+  const oy = H / 2 - ((y0 + y1) / 2) * sc
+  for (const n of nodes) { n.x = n.x * sc + ox;  n.y = n.y * sc + oy }
 }
 
-// ── Zoom transform ─────────────────────────────────────────────────────────────
-
-interface ZoomT { scale: number; tx: number; ty: number }
+// ── Zoom helper ──────────────────────────────────────────────────────────────────
 
 function zoomForNodes(nodes: SimNode[], nodeIds: Set<number>, W: number, H: number): ZoomT | null {
   const vis = nodes.filter(n => nodeIds.has(n.id))
@@ -148,8 +159,7 @@ function zoomForNodes(nodes: SimNode[], nodeIds: Set<number>, W: number, H: numb
   }
 
   const pad  = 72
-  const xs   = vis.map(n => n.x)
-  const ys   = vis.map(n => n.y)
+  const xs   = vis.map(n => n.x), ys = vis.map(n => n.y)
   const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad
   const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad
   const scale = Math.min(W / (maxX - minX), H / (maxY - minY), 2.8)
@@ -160,7 +170,7 @@ function zoomForNodes(nodes: SimNode[], nodeIds: Set<number>, W: number, H: numb
   }
 }
 
-// ── Canvas renderer ────────────────────────────────────────────────────────────
+// ── Canvas renderer ──────────────────────────────────────────────────────────────
 
 function drawGraph(
   ctx: CanvasRenderingContext2D,
@@ -170,17 +180,15 @@ function drawGraph(
   W: number,
   H: number,
   hovered: number | null,
-  zoomed: { actorId: number; nodeIds: Set<number> } | null,
+  zoomed: ZoomedState | null,
   dpr: number,
 ) {
   ctx.clearRect(0, 0, W * dpr, H * dpr)
   ctx.save()
   ctx.scale(dpr, dpr)
 
-  const maxCS = Math.max(...nodes.map(n => n.costar_count), 1)
-  const maxWt = Math.max(...edges.map(e => e.weight), 1)
-  const nodeR = (n: SimNode) => 3 + Math.sqrt(n.costar_count / maxCS) * 13
-
+  const maxCS  = Math.max(...nodes.map(n => n.costar_count), 1)
+  const maxWt  = Math.max(...edges.map(e => e.weight), 1)
   const focusId = zoomed?.actorId ?? hovered
   const visIds  = zoomed?.nodeIds ?? null
 
@@ -193,13 +201,13 @@ function drawGraph(
     }
   }
 
-  // Apply zoom transform
+  // Apply click-zoom transform
   if (zoomed) {
     const zt = zoomForNodes(nodes, zoomed.nodeIds, W, H)
     if (zt) ctx.transform(zt.scale, 0, 0, zt.scale, zt.tx, zt.ty)
   }
 
-  // ── Edges ──────────────────────────────────────────────────────────────────
+  // ── Edges ────────────────────────────────────────────────────────────────────
   for (const e of edges) {
     if (visIds && !(visIds.has(e.source) && visIds.has(e.target))) continue
     const si = idx[e.source], ti = idx[e.target]
@@ -207,33 +215,33 @@ function drawGraph(
     const sn = nodes[si], tn = nodes[ti]
 
     const isConn = focusId != null && (e.source === focusId || e.target === focusId)
-    const alpha = focusId == null
-      ? 0.05 + (e.weight / maxWt) * 0.07      // at rest: ~0.08 avg, very subtle
+    const alpha  = focusId == null
+      ? 0.04                                      // at rest: very subtle
       : isConn
-        ? 0.55 + (e.weight / maxWt) * 0.35    // focused: vivid
-        : 0.012                                 // non-connected: nearly invisible
+        ? 0.50 + (e.weight / maxWt) * 0.40       // focused: vivid
+        : 0.006                                   // other: nearly invisible
 
     ctx.beginPath()
     ctx.moveTo(sn.x, sn.y)
     ctx.lineTo(tn.x, tn.y)
     ctx.strokeStyle = `rgba(255,255,255,${alpha})`
-    ctx.lineWidth   = 0.4 + (e.weight / maxWt) * 2.0
+    ctx.lineWidth   = isConn ? 1.5 : 1
     ctx.stroke()
   }
 
-  // ── Nodes ──────────────────────────────────────────────────────────────────
+  // ── Nodes ────────────────────────────────────────────────────────────────────
   for (const n of nodes) {
     if (visIds && !visIds.has(n.id)) continue
 
-    const r       = nodeR(n)
+    const r       = nodeR(n, maxCS)
     const color   = IND_COLOR[n.industry] ?? IND_COLOR.Unknown
     const isFocus = n.id === focusId
     const isNbr   = nbrs.has(n.id)
     const dimmed  = focusId != null && !isFocus && !isNbr
 
-    ctx.globalAlpha = dimmed ? 0.10 : 1
+    ctx.globalAlpha = dimmed ? 0.08 : 1
 
-    if (isFocus) { ctx.shadowColor = color; ctx.shadowBlur = 22 }
+    if (isFocus) { ctx.shadowColor = color; ctx.shadowBlur = 24 }
 
     ctx.beginPath()
     ctx.arc(n.x, n.y, r, 0, Math.PI * 2)
@@ -249,13 +257,14 @@ function drawGraph(
 
     ctx.globalAlpha = 1
 
-    // Show label for focused, neighbours (when in focus mode), or large nodes
-    const showLabel = isFocus || (isNbr && focusId != null) || r > 7.5
+    // Labels: hover + direct neighbours only  (no ambient labels)
+    const showLabel = isFocus || (isNbr && focusId != null)
     if (showLabel && !dimmed) {
-      ctx.globalAlpha = isFocus ? 1 : r > 8 ? 0.85 : 0.65
-      ctx.font        = `${isFocus ? 600 : 400} ${Math.max(9, Math.min(r * 0.85, 13))}px Inter,sans-serif`
-      ctx.fillStyle   = 'white'
-      ctx.textAlign   = 'center'
+      ctx.globalAlpha = isFocus ? 1 : 0.75
+      const fs = Math.max(9, Math.min(r * 0.9, 13))
+      ctx.font      = `${isFocus ? 600 : 400} ${fs}px Inter,sans-serif`
+      ctx.fillStyle = 'white'
+      ctx.textAlign = 'center'
       ctx.fillText(n.name.split(' ')[0], n.x, n.y + r + 11)
       ctx.globalAlpha = 1
     }
@@ -264,7 +273,7 @@ function drawGraph(
   ctx.restore()
 }
 
-// ── Tooltip ───────────────────────────────────────────────────────────────────
+// ── Tooltip ──────────────────────────────────────────────────────────────────────
 
 function Tooltip({ node, x, y }: { node: UniverseNode; x: number; y: number }) {
   return (
@@ -287,7 +296,7 @@ function Tooltip({ node, x, y }: { node: UniverseNode; x: number; y: number }) {
   )
 }
 
-// ── Legend ────────────────────────────────────────────────────────────────────
+// ── Legend ───────────────────────────────────────────────────────────────────────
 
 function GraphLegend() {
   return (
@@ -298,12 +307,12 @@ function GraphLegend() {
           {ind}
         </div>
       ))}
-      <div className="ml-auto text-white/30">Node size = √collaborators · Click to zoom into neighborhood</div>
+      <div className="ml-auto text-white/30">Node size = √co-stars · Click to zoom into neighbourhood</div>
     </div>
   )
 }
 
-// ── Cluster zone corner labels ─────────────────────────────────────────────────
+// ── Zone corner labels ────────────────────────────────────────────────────────────
 
 const ZONE_LABELS = [
   { ind: 'Tamil',     cls: 'top-3 left-3'    },
@@ -312,9 +321,7 @@ const ZONE_LABELS = [
   { ind: 'Kannada',   cls: 'bottom-3 right-3' },
 ]
 
-// ── Main component ─────────────────────────────────────────────────────────────
-
-interface ZoomedState { actorId: number; nodeIds: Set<number> }
+// ── Main component ────────────────────────────────────────────────────────────────
 
 export default function CinemaUniverse({ data }: { data: UniverseData }) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
@@ -330,7 +337,7 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
 
   const W = 900, H = 560
 
-  // ── Visible subset (top-80 or all) ─────────────────────────────────────────
+  // ── Visible subset (top-80 or all) ──────────────────────────────────────────
 
   const visibleNodes = useMemo(() => {
     const sorted = [...data.nodes].sort((a, b) => b.costar_count - a.costar_count)
@@ -347,7 +354,7 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
     [data.edges, visibleNodeIds],
   )
 
-  // ── Force simulation ────────────────────────────────────────────────────────
+  // ── Force simulation ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!visibleNodes.length) return
@@ -357,14 +364,17 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
 
     setTimeout(() => {
       const sn: SimNode[] = visibleNodes.map(n => {
-        const ind    = CLUSTER_NX[n.industry] !== undefined ? n.industry : 'Unknown'
-        const jitter = Math.min(W, H) * 0.10
+        const ind    = ANCHOR_X[n.industry] !== undefined ? n.industry : 'Unknown'
+        const jitter = 80
         return {
           ...n,
-          x: CLUSTER_NX[ind] * W + (Math.random() - 0.5) * jitter,
-          y: CLUSTER_NY[ind] * H + (Math.random() - 0.5) * jitter,
+          x:  ANCHOR_X[ind] + (Math.random() - 0.5) * jitter,
+          y:  ANCHOR_Y[ind] + (Math.random() - 0.5) * jitter,
+          vx: 0,
+          vy: 0,
         }
       })
+
       runForceLayout(sn, visibleEdges, W, H, 2000)
 
       const im: Record<number, number> = {}
@@ -376,7 +386,7 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleNodes, visibleEdges])
 
-  // ── Redraw ──────────────────────────────────────────────────────────────────
+  // ── Redraw ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!simNodes || !canvasRef.current) return
@@ -391,7 +401,7 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
     drawGraph(ctx, simNodes, visibleEdges, idxMap, W, H, hovered, zoomed, dpr)
   }, [simNodes, visibleEdges, idxMap, hovered, zoomed])
 
-  // ── Hit detection (zoom-aware) ──────────────────────────────────────────────
+  // ── Hit detection (zoom-aware) ───────────────────────────────────────────────
 
   const findNode = useCallback((ex: number, ey: number): SimNode | null => {
     if (!simNodes || !canvasRef.current) return null
@@ -409,7 +419,7 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
     let best: SimNode | null = null, bestD = 32
 
     for (const n of pool) {
-      const r = 3 + Math.sqrt(n.costar_count / maxCS) * 16
+      const r = nodeR(n, maxCS)
       const d = Math.hypot(n.x - mx, n.y - my)
       if (d < r + 6 && d < bestD) { best = n; bestD = d }
     }
@@ -427,10 +437,9 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
   const onClick = useCallback((e: React.MouseEvent) => {
     const n = findNode(e.clientX, e.clientY)
 
-    if (!n)                          { setZoomed(null); return }     // empty area → exit zoom
-    if (zoomed?.actorId === n.id)    { setZoomed(null); return }     // same actor → toggle off
+    if (!n)                          { setZoomed(null); return }
+    if (zoomed?.actorId === n.id)    { setZoomed(null); return }
 
-    // Zoom into this actor's neighbourhood
     const nbrs = new Set<number>([n.id])
     for (const ed of visibleEdges) {
       if (ed.source === n.id) nbrs.add(ed.target)
@@ -439,7 +448,7 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
     setZoomed({ actorId: n.id, nodeIds: nbrs })
   }, [findNode, zoomed, visibleEdges])
 
-  // ── Derived UI data ─────────────────────────────────────────────────────────
+  // ── Derived ──────────────────────────────────────────────────────────────────
 
   const industryStats = useMemo(() =>
     Object.entries(
@@ -453,7 +462,7 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
 
   const zoomedActor = zoomed ? simNodes?.find(n => n.id === zoomed.actorId) : null
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="glass rounded-3xl p-6 sm:p-8">
@@ -465,12 +474,11 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
             <h2 className="text-white font-bold text-lg">Cinema Universe</h2>
           </div>
           <p className="text-white/40 text-sm">
-            {visibleNodes.length} actors · {visibleEdges.length} edges (2+ shared films) · hover or click to explore
+            {visibleNodes.length} actors · {visibleEdges.length} edges (3+ shared films) · hover or click to explore
           </p>
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          {/* Industry pills */}
           <div className="hidden sm:flex gap-2 flex-wrap justify-end">
             {industryStats.map(([ind, cnt]) => (
               <div
@@ -487,7 +495,6 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
             ))}
           </div>
 
-          {/* Expand / collapse toggle */}
           {data.nodes.length > INITIAL_LIMIT && (
             <button
               onClick={() => setShowAll(v => !v)}
@@ -525,7 +532,6 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
 
         {tooltip && <Tooltip node={tooltip.node} x={tooltip.x} y={tooltip.y} />}
 
-        {/* Zoom mode: actor info + back button */}
         {zoomed && zoomedActor && (
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
             <div
@@ -546,7 +552,6 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
           </div>
         )}
 
-        {/* Industry cluster zone corner labels */}
         {!simulating && !zoomed && ZONE_LABELS.map(({ ind, cls }) => (
           <div
             key={ind}
