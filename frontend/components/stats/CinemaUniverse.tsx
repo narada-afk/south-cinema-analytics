@@ -28,10 +28,10 @@ const IND_COLOR: Record<string, string> = {
 // ── Cluster centers (0–1 normalised) ──────────────────────────────────────────
 
 const CLUSTER_NX: Record<string, number> = {
-  Tamil: 0.24, Telugu: 0.24, Malayalam: 0.76, Kannada: 0.76, Unknown: 0.50,
+  Tamil: 0.26, Telugu: 0.26, Malayalam: 0.74, Kannada: 0.74, Unknown: 0.50,
 }
 const CLUSTER_NY: Record<string, number> = {
-  Tamil: 0.28, Telugu: 0.74, Malayalam: 0.28, Kannada: 0.74, Unknown: 0.50,
+  Tamil: 0.32, Telugu: 0.68, Malayalam: 0.32, Kannada: 0.68, Unknown: 0.50,
 }
 
 const INITIAL_LIMIT = 80
@@ -46,7 +46,8 @@ interface SimNode extends UniverseNode {
 const NODE_REPULSION = 10000  // Coulomb constant — how hard nodes push apart
 const LINK_DIST      = 150    // preferred edge length in pixels
 const LINK_STR       = 0.06   // spring stiffness (weak; many edges → keep low)
-const CLUSTER_STR    = 0.020  // industry cluster pull strength
+const CLUSTER_STR    = 0.030  // industry cluster pull strength
+const QUAD_STR       = 0.045  // quadrant confinement — pulls nodes back across midline
 
 function runForceLayout(
   nodes: SimNode[],
@@ -70,7 +71,7 @@ function runForceLayout(
     // Power-1.5 cooling: fast at first, slow fine-tuning at the tail
     const temp = maxD * Math.pow(Math.max(0, 1 - it / iters), 1.5)
     // Cluster pull: strong early (holds industry groups apart), eases to a floor
-    const clF = CLUSTER_STR * Math.max(0.35, 1 - (it / iters) * 0.65)
+    const clF = CLUSTER_STR * Math.max(0.50, 1 - (it / iters) * 0.50)
     fdx.fill(0); fdy.fill(0)
 
     // ── Repulsion: F = NODE_REPULSION / d  (Coulomb 1/d, not 1/d²) ──────────
@@ -98,7 +99,16 @@ function runForceLayout(
       fdx[ti] -= f * ex / d;  fdy[ti] -= f * ey / d
     }
 
-    // ── Apply displacement + industry cluster pull + boundary clamp ───────────
+    // ── Soft outer wall repulsion (prevents pileup at canvas edges) ──────────
+    const WALL_R = 1800, WALL_E = 130
+    for (let i = 0; i < N; i++) {
+      if (nodes[i].x < WALL_E)       fdx[i] += WALL_R * Math.max(0, 1 - nodes[i].x / WALL_E)
+      if (nodes[i].x > W - WALL_E)   fdx[i] -= WALL_R * Math.max(0, 1 - (W - nodes[i].x) / WALL_E)
+      if (nodes[i].y < WALL_E)       fdy[i] += WALL_R * Math.max(0, 1 - nodes[i].y / WALL_E)
+      if (nodes[i].y > H - WALL_E)   fdy[i] -= WALL_R * Math.max(0, 1 - (H - nodes[i].y) / WALL_E)
+    }
+
+    // ── Apply displacement + industry cluster pull + quadrant confinement ────
     for (let i = 0; i < N; i++) {
       const disp = Math.sqrt(fdx[i] * fdx[i] + fdy[i] * fdy[i]) || 0.1
       nodes[i].x += (fdx[i] / disp) * Math.min(disp, temp)
@@ -107,6 +117,16 @@ function runForceLayout(
       const ind = CLUSTER_NX[nodes[i].industry] !== undefined ? nodes[i].industry : 'Unknown'
       nodes[i].x += (CLUSTER_NX[ind] * W - nodes[i].x) * clF
       nodes[i].y += (CLUSTER_NY[ind] * H - nodes[i].y) * clF
+
+      // Quadrant confinement: correct nodes that cross the canvas mid-lines
+      if (ind !== 'Unknown') {
+        const isLeft = ind === 'Tamil' || ind === 'Telugu'
+        const isTop  = ind === 'Tamil' || ind === 'Malayalam'
+        if ( isLeft && nodes[i].x > W / 2) nodes[i].x -= (nodes[i].x - W / 2) * QUAD_STR
+        if (!isLeft && nodes[i].x < W / 2) nodes[i].x += (W / 2 - nodes[i].x) * QUAD_STR
+        if ( isTop  && nodes[i].y > H / 2) nodes[i].y -= (nodes[i].y - H / 2) * QUAD_STR
+        if (!isTop  && nodes[i].y < H / 2) nodes[i].y += (H / 2 - nodes[i].y) * QUAD_STR
+      }
 
       nodes[i].x = Math.max(22, Math.min(W - 22, nodes[i].x))
       nodes[i].y = Math.max(22, Math.min(H - 22, nodes[i].y))
@@ -345,7 +365,7 @@ export default function CinemaUniverse({ data }: { data: UniverseData }) {
           y: CLUSTER_NY[ind] * H + (Math.random() - 0.5) * jitter,
         }
       })
-      runForceLayout(sn, visibleEdges, W, H, 300)
+      runForceLayout(sn, visibleEdges, W, H, 2000)
 
       const im: Record<number, number> = {}
       sn.forEach((n, i) => { im[n.id] = i })
