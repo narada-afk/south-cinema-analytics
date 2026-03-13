@@ -13,8 +13,6 @@ import IndustryChart       from '@/components/stats/IndustryChart'
 import DirectorPartnerships from '@/components/stats/DirectorPartnerships'
 import CareerTimeline      from '@/components/stats/CareerTimeline'
 import TopCoStarsChart     from '@/components/stats/TopCoStarsChart'
-import StatsSearchClient   from '@/components/stats/StatsSearchClient'
-
 import {
   getStatsOverview,
   getMostConnected,
@@ -120,11 +118,6 @@ export default async function StatsPage({ searchParams }: PageProps) {
             label="Industries"
           />
         </div>
-
-        {/* ── Search bar (Client Component — needs actor-select callback) ── */}
-        <Section id="search" className="mb-10">
-          <StatsSearchClient />
-        </Section>
 
         {/* ── Connection Finder ── */}
         <Section id="connection-finder" className="mb-8">
