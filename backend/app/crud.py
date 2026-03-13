@@ -902,3 +902,362 @@ def find_actor_connection(db: Session, actor1_id: int, actor2_id: int,
         "path": [{"id": aid, "name": name_map.get(aid, "?")} for aid in path_ids],
         "connections": connections,
     }
+
+
+# ===========================================================================
+# Sprint 22 — Build Your Own Chart / Cinema Universe / Gravity Center
+# ===========================================================================
+
+def get_chart_data(
+    db: Session,
+    x_axis: str,
+    y_axis: str,
+    actor_ids: list[int],
+    industry: str | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
+) -> dict:
+    """
+    Flexible chart data for the Build Your Own Chart feature.
+
+    x_axis: 'year' | 'decade' | 'actor' | 'industry' | 'director'
+    y_axis: 'film_count' | 'avg_rating' | 'unique_costars'
+            | 'director_collaborations' | 'total_collaborations'
+
+    Returns {"chart_type": "line"|"bar", "series": [...]}
+    """
+    # ── helpers ──────────────────────────────────────────────────────────────
+    industry_filter = "AND m.industry = :industry" if industry else ""
+    year_from_filter = "AND m.release_year >= :year_from" if year_from else ""
+    year_to_filter   = "AND m.release_year <= :year_to"   if year_to   else ""
+    year_filters = f"{year_from_filter} {year_to_filter}"
+
+    params: dict = {"actor_ids": actor_ids}
+    if industry:   params["industry"]  = industry
+    if year_from:  params["year_from"] = year_from
+    if year_to:    params["year_to"]   = year_to
+
+    def actor_name_map() -> dict:
+        rows = db.execute(
+            text("SELECT id, name FROM actors WHERE id = ANY(:ids)"),
+            {"ids": actor_ids}
+        ).fetchall()
+        return {r[0]: r[1] for r in rows}
+
+    # ── y-axis SQL fragments ──────────────────────────────────────────────────
+    Y_SQL = {
+        "film_count":               "COUNT(DISTINCT am.movie_id)",
+        "avg_rating":               "ROUND(AVG(m.vote_average) FILTER (WHERE m.vote_average > 0), 2)",
+        "director_collaborations":  "COUNT(DISTINCT m.director) FILTER (WHERE m.director IS NOT NULL)",
+    }
+    # unique_costars and total_collaborations need a different join
+    COSTAR_Y = y_axis in ("unique_costars", "total_collaborations")
+
+    # ── x = year → LINE chart ────────────────────────────────────────────────
+    if x_axis == "year":
+        name_map = actor_name_map()
+        series = []
+        for aid in actor_ids:
+            p = {"aid": aid, **params}
+            if COSTAR_Y:
+                agg = "COUNT(DISTINCT am2.actor_id)" if y_axis == "unique_costars" else "COUNT(am2.actor_id)"
+                rows = db.execute(text(f"""
+                    SELECT m.release_year, {agg}
+                    FROM actor_movies am
+                    JOIN movies m ON m.id = am.movie_id
+                    JOIN actor_movies am2 ON am2.movie_id = am.movie_id AND am2.actor_id != am.actor_id
+                    WHERE am.actor_id = :aid
+                    {industry_filter} {year_filters}
+                    AND m.release_year BETWEEN 1950 AND 2026
+                    GROUP BY m.release_year ORDER BY m.release_year
+                """), p).fetchall()
+            else:
+                agg = Y_SQL[y_axis]
+                rows = db.execute(text(f"""
+                    SELECT m.release_year, {agg}
+                    FROM actor_movies am
+                    JOIN movies m ON m.id = am.movie_id
+                    WHERE am.actor_id = :aid
+                    {industry_filter} {year_filters}
+                    AND m.release_year BETWEEN 1950 AND 2026
+                    GROUP BY m.release_year ORDER BY m.release_year
+                """), p).fetchall()
+            series.append({
+                "actor_id": aid,
+                "actor_name": name_map.get(aid, "?"),
+                "points": [{"x": r[0], "y": float(r[1]) if r[1] else 0} for r in rows],
+            })
+        return {"chart_type": "line", "series": series}
+
+    # ── x = decade → BAR chart ───────────────────────────────────────────────
+    if x_axis == "decade":
+        DECADE_LABELS = ["Pre-1980","1980s","1990s","2000s","2010s","2020s"]
+        DECADE_CASE = """
+            CASE WHEN m.release_year < 1980 THEN 'Pre-1980'
+                 WHEN m.release_year < 1990 THEN '1980s'
+                 WHEN m.release_year < 2000 THEN '1990s'
+                 WHEN m.release_year < 2010 THEN '2000s'
+                 WHEN m.release_year < 2020 THEN '2010s'
+                 ELSE '2020s' END
+        """
+        name_map = actor_name_map()
+        series = []
+        for aid in actor_ids:
+            p = {"aid": aid, **params}
+            if COSTAR_Y:
+                agg = "COUNT(DISTINCT am2.actor_id)" if y_axis == "unique_costars" else "COUNT(am2.actor_id)"
+                rows = db.execute(text(f"""
+                    SELECT {DECADE_CASE} AS decade, {agg}
+                    FROM actor_movies am
+                    JOIN movies m ON m.id = am.movie_id
+                    JOIN actor_movies am2 ON am2.movie_id = am.movie_id AND am2.actor_id != am.actor_id
+                    WHERE am.actor_id = :aid {industry_filter}
+                    GROUP BY decade
+                """), p).fetchall()
+            else:
+                agg = Y_SQL[y_axis]
+                rows = db.execute(text(f"""
+                    SELECT {DECADE_CASE} AS decade, {agg}
+                    FROM actor_movies am
+                    JOIN movies m ON m.id = am.movie_id
+                    WHERE am.actor_id = :aid {industry_filter}
+                    GROUP BY decade
+                """), p).fetchall()
+            d = {r[0]: float(r[1]) if r[1] else 0 for r in rows}
+            series.append({
+                "actor_id": aid,
+                "actor_name": name_map.get(aid, "?"),
+                "points": [{"x": lbl, "y": d.get(lbl, 0)} for lbl in DECADE_LABELS],
+            })
+        return {"chart_type": "bar", "series": series}
+
+    # ── x = actor → single-series BAR chart ──────────────────────────────────
+    if x_axis == "actor":
+        name_map = actor_name_map()
+        series = []
+        for aid in actor_ids:
+            p = {"aid": aid, **params}
+            if COSTAR_Y:
+                agg = "COUNT(DISTINCT am2.actor_id)" if y_axis == "unique_costars" else "COUNT(am2.actor_id)"
+                row = db.execute(text(f"""
+                    SELECT {agg}
+                    FROM actor_movies am
+                    JOIN movies m ON m.id = am.movie_id
+                    JOIN actor_movies am2 ON am2.movie_id = am.movie_id AND am2.actor_id != am.actor_id
+                    WHERE am.actor_id = :aid {industry_filter} {year_filters}
+                """), p).fetchone()
+            else:
+                agg = Y_SQL[y_axis]
+                row = db.execute(text(f"""
+                    SELECT {agg}
+                    FROM actor_movies am
+                    JOIN movies m ON m.id = am.movie_id
+                    WHERE am.actor_id = :aid {industry_filter} {year_filters}
+                """), p).fetchone()
+            series.append({
+                "actor_id": aid,
+                "actor_name": name_map.get(aid, "?"),
+                "points": [{"x": name_map.get(aid, "?"), "y": float(row[0]) if row and row[0] else 0}],
+            })
+        return {"chart_type": "bar", "series": series}
+
+    # ── x = industry → per-industry BAR chart ────────────────────────────────
+    if x_axis == "industry":
+        INDUSTRIES = ["Tamil", "Telugu", "Malayalam", "Kannada"]
+        name_map = actor_name_map()
+        series = []
+        for aid in actor_ids:
+            p = {"aid": aid, **params}
+            if COSTAR_Y:
+                agg = "COUNT(DISTINCT am2.actor_id)" if y_axis == "unique_costars" else "COUNT(am2.actor_id)"
+                rows = db.execute(text(f"""
+                    SELECT m.industry, {agg}
+                    FROM actor_movies am
+                    JOIN movies m ON m.id = am.movie_id
+                    JOIN actor_movies am2 ON am2.movie_id = am.movie_id AND am2.actor_id != am.actor_id
+                    WHERE am.actor_id = :aid AND m.industry = ANY(:inds) {year_filters}
+                    GROUP BY m.industry ORDER BY m.industry
+                """), {**p, "inds": INDUSTRIES}).fetchall()
+            else:
+                agg = Y_SQL[y_axis]
+                rows = db.execute(text(f"""
+                    SELECT m.industry, {agg}
+                    FROM actor_movies am
+                    JOIN movies m ON m.id = am.movie_id
+                    WHERE am.actor_id = :aid AND m.industry = ANY(:inds) {year_filters}
+                    GROUP BY m.industry ORDER BY m.industry
+                """), {**p, "inds": INDUSTRIES}).fetchall()
+            d = {r[0]: float(r[1]) if r[1] else 0 for r in rows}
+            series.append({
+                "actor_id": aid,
+                "actor_name": name_map.get(aid, "?"),
+                "points": [{"x": ind, "y": d.get(ind, 0)} for ind in INDUSTRIES],
+            })
+        return {"chart_type": "bar", "series": series}
+
+    # ── x = director → top directors by Y, for selected actors ───────────────
+    if x_axis == "director":
+        if COSTAR_Y:
+            y_axis = "film_count"  # fallback for director axis
+        agg = Y_SQL.get(y_axis, "COUNT(DISTINCT am.movie_id)")
+        rows = db.execute(text(f"""
+            SELECT m.director, a.id, a.name, {agg}
+            FROM actor_movies am
+            JOIN movies m ON m.id = am.movie_id
+            JOIN actors a ON a.id = am.actor_id
+            WHERE am.actor_id = ANY(:actor_ids)
+              AND m.director IS NOT NULL AND m.director != ''
+              {industry_filter} {year_filters}
+            GROUP BY m.director, a.id, a.name
+            ORDER BY 4 DESC
+            LIMIT 60
+        """), params).fetchall()
+        # Pivot: group by director across actors
+        from collections import defaultdict
+        dir_data: dict = defaultdict(dict)
+        for director, aid, aname, val in rows:
+            dir_data[director][aid] = float(val) if val else 0
+        # Top 15 directors by sum of all actors
+        top_dirs = sorted(dir_data.items(), key=lambda kv: sum(kv[1].values()), reverse=True)[:15]
+        name_map = actor_name_map()
+        series = []
+        for aid in actor_ids:
+            series.append({
+                "actor_id": aid,
+                "actor_name": name_map.get(aid, "?"),
+                "points": [{"x": d, "y": dir_data[d].get(aid, 0)} for d, _ in top_dirs],
+            })
+        return {"chart_type": "bar", "series": series}
+
+    return {"chart_type": "bar", "series": []}
+
+
+def get_cinema_universe(db: Session, min_shared_films: int = 2) -> dict:
+    """
+    Returns nodes (ingested actors) and edges (shared-film pairs) for the
+    force-directed Cinema Universe graph.
+    """
+    # Nodes: all primary + network actors with costar counts
+    node_rows = db.execute(text("""
+        SELECT a.id, a.name, a.industry,
+               COUNT(DISTINCT am.movie_id)  AS film_count,
+               COUNT(DISTINCT am2.actor_id) AS costar_count
+        FROM actors a
+        JOIN actor_movies am  ON am.actor_id  = a.id
+        JOIN actor_movies am2 ON am2.movie_id = am.movie_id
+                              AND am2.actor_id != a.id
+        WHERE a.actor_tier IS NOT NULL
+        GROUP BY a.id, a.name, a.industry
+        ORDER BY costar_count DESC
+    """)).fetchall()
+    nodes = [
+        {"id": r[0], "name": r[1], "industry": r[2] or "Unknown",
+         "film_count": r[3], "costar_count": r[4]}
+        for r in node_rows
+    ]
+    node_ids = {r[0] for r in node_rows}
+
+    # Edges: pairs of ingested actors with ≥ min_shared_films together
+    edge_rows = db.execute(text("""
+        SELECT am1.actor_id AS source,
+               am2.actor_id AS target,
+               COUNT(*)     AS weight
+        FROM actor_movies am1
+        JOIN actor_movies am2
+          ON am1.movie_id = am2.movie_id AND am1.actor_id < am2.actor_id
+        JOIN actors a1 ON a1.id = am1.actor_id AND a1.actor_tier IS NOT NULL
+        JOIN actors a2 ON a2.id = am2.actor_id AND a2.actor_tier IS NOT NULL
+        GROUP BY am1.actor_id, am2.actor_id
+        HAVING COUNT(*) >= :min_films
+        ORDER BY weight DESC
+    """), {"min_films": min_shared_films}).fetchall()
+    edges = [{"source": r[0], "target": r[1], "weight": r[2]} for r in edge_rows]
+
+    return {"nodes": nodes, "edges": edges}
+
+
+def get_gravity_center(db: Session, limit: int = 25) -> list:
+    """
+    Compute approximate betweenness centrality (Brandes algorithm) on the
+    collaboration graph of ingested actors, and return the top `limit` actors
+    ranked by centrality score.
+    """
+    from collections import deque, defaultdict
+
+    # Build adjacency list for ingested actors only
+    rows = db.execute(text("""
+        SELECT DISTINCT am1.actor_id, am2.actor_id
+        FROM actor_movies am1
+        JOIN actor_movies am2
+          ON am1.movie_id = am2.movie_id AND am1.actor_id < am2.actor_id
+        JOIN actors a1 ON a1.id = am1.actor_id AND a1.actor_tier IS NOT NULL
+        JOIN actors a2 ON a2.id = am2.actor_id AND a2.actor_tier IS NOT NULL
+    """)).fetchall()
+
+    graph: dict[int, set] = defaultdict(set)
+    for a, b in rows:
+        graph[a].add(b)
+        graph[b].add(a)
+    V = list(graph.keys())
+
+    # Brandes betweenness centrality
+    centrality: dict[int, float] = {v: 0.0 for v in V}
+    for s in V:
+        stack: list[int] = []
+        pred: dict[int, list] = {v: [] for v in V}
+        sigma = dict.fromkeys(V, 0.0); sigma[s] = 1.0
+        dist  = dict.fromkeys(V, -1);  dist[s]  = 0
+        q: deque = deque([s])
+        while q:
+            v = q.popleft()
+            stack.append(v)
+            for w in graph[v]:
+                if dist[w] < 0:
+                    q.append(w); dist[w] = dist[v] + 1
+                if dist[w] == dist[v] + 1:
+                    sigma[w] += sigma[v]; pred[w].append(v)
+        delta = dict.fromkeys(V, 0.0)
+        while stack:
+            w = stack.pop()
+            for v in pred[w]:
+                delta[v] += (sigma[v] / sigma[w]) * (1 + delta[w])
+            if w != s:
+                centrality[w] += delta[w]
+
+    # Normalize
+    n = len(V)
+    norm = (n - 1) * (n - 2) if n > 2 else 1
+    for v in centrality:
+        centrality[v] /= norm
+
+    # Fetch actor metadata
+    top_ids = sorted(centrality, key=lambda v: centrality[v], reverse=True)[:limit]
+    actor_rows = db.execute(
+        text("SELECT id, name, industry FROM actors WHERE id = ANY(:ids)"),
+        {"ids": top_ids}
+    ).fetchall()
+    meta = {r[0]: {"name": r[1], "industry": r[2]} for r in actor_rows}
+
+    # Film + costar counts
+    counts = db.execute(text("""
+        SELECT am.actor_id,
+               COUNT(DISTINCT am.movie_id)  AS film_count,
+               COUNT(DISTINCT am2.actor_id) AS costar_count
+        FROM actor_movies am
+        JOIN actor_movies am2 ON am2.movie_id = am.movie_id AND am2.actor_id != am.actor_id
+        WHERE am.actor_id = ANY(:ids)
+        GROUP BY am.actor_id
+    """), {"ids": top_ids}).fetchall()
+    cnt_map = {r[0]: {"film_count": r[1], "costar_count": r[2]} for r in counts}
+
+    return [
+        {
+            "id": aid,
+            "name": meta.get(aid, {}).get("name", "?"),
+            "industry": meta.get(aid, {}).get("industry", "Unknown"),
+            "centrality": round(centrality[aid], 6),
+            "film_count": cnt_map.get(aid, {}).get("film_count", 0),
+            "costar_count": cnt_map.get(aid, {}).get("costar_count", 0),
+        }
+        for aid in top_ids
+    ]

@@ -742,3 +742,46 @@ def stats_connection(
         if not crud.get_actor_by_id(db, aid):
             raise HTTPException(status_code=404, detail=f"Actor {aid} not found")
     return crud.find_actor_connection(db, actor1_id, actor2_id)
+
+
+# ===========================================================================
+# Sprint 22 — Build Your Own Chart / Cinema Universe / Gravity Center
+# ===========================================================================
+
+@app.get("/stats/chart-data", tags=["Stats"])
+def stats_chart_data(
+    x_axis:   str = Query(..., description="year|decade|actor|industry|director"),
+    y_axis:   str = Query(..., description="film_count|avg_rating|unique_costars|director_collaborations|total_collaborations"),
+    actors:   str = Query("", description="Comma-separated actor IDs"),
+    industry: str | None = Query(None),
+    year_from: int | None = Query(None),
+    year_to:   int | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Dynamic chart data for the Build Your Own Chart playground."""
+    actor_ids = [int(a) for a in actors.split(",") if a.strip().isdigit()]
+    if not actor_ids and x_axis not in ("industry",):
+        raise HTTPException(status_code=400, detail="Select at least one actor")
+    return crud.get_chart_data(db, x_axis, y_axis, actor_ids, industry, year_from, year_to)
+
+
+@app.get("/stats/cinema-universe", tags=["Stats"])
+def stats_cinema_universe(
+    min_films: int = Query(2, ge=1, le=10,
+                           description="Min shared films for an edge"),
+    db: Session = Depends(get_db),
+):
+    """Force-directed graph data: nodes (ingested actors) + edges (shared films)."""
+    return crud.get_cinema_universe(db, min_films)
+
+
+@app.get("/stats/gravity-center", tags=["Stats"])
+def stats_gravity_center(
+    limit: int = Query(25, le=50),
+    db: Session = Depends(get_db),
+):
+    """
+    Betweenness centrality leaderboard — actors who bridge the most paths
+    in the South Indian cinema collaboration network.
+    """
+    return crud.get_gravity_center(db, limit)

@@ -247,3 +247,67 @@ export async function getActorConnection(
     `/stats/connection?actor1_id=${actor1Id}&actor2_id=${actor2Id}`
   )
 }
+
+// ── Sprint 22 — Build Your Own Chart / Cinema Universe / Gravity Center ──────
+
+export interface ChartSeries {
+  actor_id:   number
+  actor_name: string
+  points:     { x: string | number; y: number }[]
+}
+
+export interface ChartData {
+  chart_type: 'line' | 'bar'
+  series:     ChartSeries[]
+}
+
+export interface UniverseNode {
+  id:           number
+  name:         string
+  industry:     string
+  film_count:   number
+  costar_count: number
+}
+
+export interface UniverseEdge {
+  source: number
+  target: number
+  weight: number
+}
+
+export interface CinemaUniverse {
+  nodes: UniverseNode[]
+  edges: UniverseEdge[]
+}
+
+export interface GravityActor {
+  id:           number
+  name:         string
+  industry:     string
+  centrality:   number
+  film_count:   number
+  costar_count: number
+}
+
+export async function getChartData(
+  xAxis: string,
+  yAxis: string,
+  actorIds: number[],
+  industry?: string,
+  yearFrom?: number,
+  yearTo?: number,
+): Promise<ChartData> {
+  const params = new URLSearchParams({ x_axis: xAxis, y_axis: yAxis, actors: actorIds.join(',') })
+  if (industry)  params.set('industry',  industry)
+  if (yearFrom)  params.set('year_from', String(yearFrom))
+  if (yearTo)    params.set('year_to',   String(yearTo))
+  return apiFetch<ChartData>(`/stats/chart-data?${params}`)
+}
+
+export async function getCinemaUniverse(minFilms = 3): Promise<CinemaUniverse> {
+  return apiFetch<CinemaUniverse>(`/stats/cinema-universe?min_films=${minFilms}`)
+}
+
+export async function getGravityCenter(limit = 25): Promise<GravityActor[]> {
+  return apiFetch<GravityActor[]>(`/stats/gravity-center?limit=${limit}`)
+}
