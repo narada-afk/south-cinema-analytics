@@ -1097,8 +1097,9 @@ def get_chart_data(
 
     # ── x = director → top directors by Y, for selected actors ───────────────
     if x_axis == "director":
-        if COSTAR_Y:
-            y_axis = "film_count"  # fallback for director axis
+        # director_collaborations per-director is always 1 — fallback to film_count
+        if COSTAR_Y or y_axis == "director_collaborations":
+            y_axis = "film_count"
         agg = Y_SQL.get(y_axis, "COUNT(DISTINCT am.movie_id)")
         rows = db.execute(text(f"""
             SELECT m.director, a.id, a.name, {agg}
