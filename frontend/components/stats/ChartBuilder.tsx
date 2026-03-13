@@ -448,10 +448,10 @@ export default function ChartBuilder() {
   const availableY = xAxis === 'director' ? Y_OPTIONS.filter(o => o.directorOk) : Y_OPTIONS
 
   const presets = [
-    { label: 'Rajini vs Kamal — films over time', actors: [{ id: 4, name: 'Rajinikanth', industry: 'Tamil' }, { id: 3, name: 'Kamal Haasan', industry: 'Tamil' }], x: 'year', y: 'film_count' },
-    { label: 'Big 3 Malayalam — co-stars by decade', actors: [{ id: 381, name: 'Mohanlal', industry: 'Malayalam' }, { id: 10, name: 'Mammootty', industry: 'Malayalam' }, { id: 9, name: 'Fahadh Faasil', industry: 'Malayalam' }], x: 'decade', y: 'unique_costars' },
-    { label: 'Telugu stars — avg rating', actors: [{ id: 1, name: 'Allu Arjun', industry: 'Telugu' }, { id: 37, name: 'Mahesh Babu', industry: 'Telugu' }, { id: 2, name: 'Prabhas', industry: 'Telugu' }], x: 'actor', y: 'avg_rating' },
-    { label: 'Rajini & Kamal — shared directors ↗', actors: [{ id: 4, name: 'Rajinikanth', industry: 'Tamil' }, { id: 3, name: 'Kamal Haasan', industry: 'Tamil' }], x: 'director', y: 'film_count' },
+    { label: 'Rajini vs Kamal — films over time', actors: [{ id: 11, name: 'Rajinikanth', industry: 'Tamil' }, { id: 12, name: 'Kamal Haasan', industry: 'Tamil' }], x: 'year', y: 'film_count' },
+    { label: 'Big 3 Malayalam — co-stars by decade', actors: [{ id: 381, name: 'Mohanlal', industry: 'Malayalam' }, { id: 1286, name: 'Mammootty', industry: 'Malayalam' }, { id: 96, name: 'Fahadh Faasil', industry: 'Malayalam' }], x: 'decade', y: 'unique_costars' },
+    { label: 'Telugu stars — avg rating', actors: [{ id: 1, name: 'Allu Arjun', industry: 'Telugu' }, { id: 3, name: 'Mahesh Babu', industry: 'Telugu' }, { id: 4, name: 'Prabhas', industry: 'Telugu' }], x: 'actor', y: 'avg_rating' },
+    { label: 'Rajini & Kamal — shared directors ↗', actors: [{ id: 11, name: 'Rajinikanth', industry: 'Tamil' }, { id: 12, name: 'Kamal Haasan', industry: 'Tamil' }], x: 'director', y: 'film_count' },
   ]
 
   return (
