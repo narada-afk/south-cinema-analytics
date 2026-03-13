@@ -118,8 +118,9 @@ export async function getActors(): Promise<Actor[]> {
   return apiFetch<Actor[]>('/actors')
 }
 
-export async function searchActors(q: string): Promise<Actor[]> {
-  return apiFetch<Actor[]>(`/actors/search?q=${encodeURIComponent(q)}`)
+export async function searchActors(q: string, leadOnly = false): Promise<Actor[]> {
+  const params = `/actors/search?q=${encodeURIComponent(q)}${leadOnly ? '&lead_only=true' : ''}`
+  return apiFetch<Actor[]>(params)
 }
 
 export async function getActor(id: number | string): Promise<ActorProfile> {
@@ -161,4 +162,88 @@ export async function getTopProductionHouses(
   const params = new URLSearchParams({ limit: String(limit) })
   if (industry && industry !== 'all') params.set('industry', industry)
   return apiFetch<ProductionHouseStat[]>(`/analytics/production-houses?${params}`)
+}
+
+// ── Stats for Nerds  (Sprint 21) ─────────────────────────────────────────────
+
+export interface StatsOverview {
+  total_movies: number
+  total_actors: number
+  total_links:  number
+  industries:   number
+}
+
+export interface ConnectedActor {
+  id:            number
+  name:          string
+  industry:      string
+  tier:          string
+  unique_costars: number
+  film_count:    number
+}
+
+export interface IndustryBucket {
+  industry: string
+  total:    number
+  pre_1980: number
+  s1980s:   number
+  s2000s:   number
+  s2010s:   number
+  s2020s:   number
+}
+
+export interface DirectorPartnership {
+  actor:      string
+  director:   string
+  film_count: number
+  industry:   string
+  films:      string[]
+}
+
+export interface TimelinePoint { year: number; count: number }
+export interface CareerTimeline {
+  actor_id:   number
+  actor_name: string
+  data:       TimelinePoint[]
+}
+
+export interface CoStarStat {
+  id:             number
+  name:           string
+  industry:       string
+  unique_costars: number
+  film_count:     number
+}
+
+export interface ConnectionPath {
+  found:       boolean
+  depth:       number
+  path:        { id: number; name: string }[]
+  connections: { movie_id: number; movie_title: string }[]
+}
+
+export async function getStatsOverview(): Promise<StatsOverview> {
+  return apiFetch<StatsOverview>('/stats/overview')
+}
+export async function getMostConnected(limit = 25): Promise<ConnectedActor[]> {
+  return apiFetch<ConnectedActor[]>(`/stats/most-connected?limit=${limit}`)
+}
+export async function getIndustryDistribution(): Promise<IndustryBucket[]> {
+  return apiFetch<IndustryBucket[]>('/stats/industry-distribution')
+}
+export async function getTopPartnerships(limit = 15): Promise<DirectorPartnership[]> {
+  return apiFetch<DirectorPartnership[]>(`/stats/top-partnerships?limit=${limit}`)
+}
+export async function getCareerTimeline(actorId: number): Promise<CareerTimeline> {
+  return apiFetch<CareerTimeline>(`/stats/career-timeline?actor_id=${actorId}`)
+}
+export async function getTopCoStars(limit = 15): Promise<CoStarStat[]> {
+  return apiFetch<CoStarStat[]>(`/stats/top-costars?limit=${limit}`)
+}
+export async function getActorConnection(
+  actor1Id: number, actor2Id: number
+): Promise<ConnectionPath> {
+  return apiFetch<ConnectionPath>(
+    `/stats/connection?actor1_id=${actor1Id}&actor2_id=${actor2Id}`
+  )
 }

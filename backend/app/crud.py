@@ -50,7 +50,7 @@ def get_actor_by_id(db: Session, actor_id: int) -> Optional[models.Actor]:
 # Search  (GET /actors/search?q=)
 # ===========================================================================
 
-def search_actors(db: Session, q: str, limit: int = 20) -> list:
+def search_actors(db: Session, q: str, limit: int = 20, lead_only: bool = False) -> list:
     """
     Case-insensitive partial-match search on actors.name.
 
@@ -64,14 +64,22 @@ def search_actors(db: Session, q: str, limit: int = 20) -> list:
        ranking above "Rajinikanth" when the query is "rajinikanth".
     2. Primary actors (is_primary_actor = True) — heroes before supporting cast.
     3. Alphabetical tiebreaker.
+
+    When lead_only=True only actors with is_primary_actor=True are returned,
+    filtering out supporting cast entirely.
     """
     exact_first = case(
         (func.lower(models.Actor.name) == q.lower(), 0),
         else_=1,
     )
-    return (
+    query = (
         db.query(models.Actor.id, models.Actor.name)
         .filter(models.Actor.name.ilike(f"%{q}%"))
+    )
+    if lead_only:
+        query = query.filter(models.Actor.is_primary_actor == True)  # noqa: E712
+    return (
+        query
         .order_by(
             exact_first,
             models.Actor.is_primary_actor.desc(),
@@ -672,3 +680,225 @@ def get_top_production_houses(
         LIMIT  :lim
     """)
     return db.execute(sql, {"ind": ind, "lim": limit}).fetchall()
+
+
+# ===========================================================================
+# Sprint 21 — Stats for Nerds  (GET /stats/*)
+# ===========================================================================
+
+def get_stats_overview(db: Session) -> dict:
+    """Global DB snapshot: movies, actors, links, industries."""
+    total_movies = db.execute(text(
+        "SELECT COUNT(*) FROM movies WHERE industry IN ('Tamil','Telugu','Malayalam','Kannada')"
+    )).scalar()
+    total_actors = db.execute(text(
+        "SELECT COUNT(*) FROM actors WHERE actor_tier IN ('primary','network')"
+    )).scalar()
+    total_links = db.execute(text("SELECT COUNT(*) FROM actor_movies")).scalar()
+    return {
+        "total_movies":  total_movies,
+        "total_actors":  total_actors,
+        "total_links":   total_links,
+        "industries":    4,
+    }
+
+
+def get_most_connected_actors(db: Session, limit: int = 25) -> list:
+    """Actors ranked by number of unique co-stars (primary + network tier only)."""
+    rows = db.execute(text("""
+        WITH costar_counts AS (
+            SELECT am1.actor_id,
+                   COUNT(DISTINCT am2.actor_id) AS unique_costars
+            FROM actor_movies am1
+            JOIN actor_movies am2
+              ON am1.movie_id = am2.movie_id AND am1.actor_id != am2.actor_id
+            GROUP BY am1.actor_id
+        ),
+        film_counts AS (
+            SELECT actor_id, COUNT(DISTINCT movie_id) AS film_count
+            FROM actor_movies
+            GROUP BY actor_id
+        )
+        SELECT a.id, a.name, a.industry, a.actor_tier,
+               COALESCE(cc.unique_costars, 0) AS unique_costars,
+               COALESCE(fc.film_count, 0)     AS film_count
+        FROM actors a
+        LEFT JOIN costar_counts cc ON cc.actor_id = a.id
+        LEFT JOIN film_counts   fc ON fc.actor_id = a.id
+        WHERE a.actor_tier IN ('primary','network')
+        ORDER BY unique_costars DESC
+        LIMIT :lim
+    """), {"lim": limit}).fetchall()
+    return [
+        {"id": r[0], "name": r[1], "industry": r[2], "tier": r[3],
+         "unique_costars": r[4], "film_count": r[5]}
+        for r in rows
+    ]
+
+
+def get_industry_distribution(db: Session) -> list:
+    """Film counts per South Indian industry, including per-decade breakdown."""
+    rows = db.execute(text("""
+        SELECT industry,
+               COUNT(*)                                      AS total,
+               COUNT(*) FILTER (WHERE release_year < 1980)  AS pre_1980,
+               COUNT(*) FILTER (WHERE release_year BETWEEN 1980 AND 1999) AS s1980s,
+               COUNT(*) FILTER (WHERE release_year BETWEEN 2000 AND 2009) AS s2000s,
+               COUNT(*) FILTER (WHERE release_year BETWEEN 2010 AND 2019) AS s2010s,
+               COUNT(*) FILTER (WHERE release_year >= 2020)               AS s2020s
+        FROM movies
+        WHERE industry IN ('Tamil','Telugu','Malayalam','Kannada')
+        GROUP BY industry
+        ORDER BY total DESC
+    """)).fetchall()
+    return [
+        {"industry": r[0], "total": r[1],
+         "pre_1980": r[2], "s1980s": r[3], "s2000s": r[4],
+         "s2010s": r[5], "s2020s": r[6]}
+        for r in rows
+    ]
+
+
+def get_top_director_partnerships(db: Session, limit: int = 15) -> list:
+    """Most prolific actor–director pairs (requires movies.director column)."""
+    rows = db.execute(text("""
+        SELECT a.name                               AS actor_name,
+               m.director,
+               COUNT(*)                            AS film_count,
+               MAX(m.industry)                     AS industry,
+               array_agg(m.title ORDER BY m.release_year DESC) AS films
+        FROM actor_movies am
+        JOIN actors a ON a.id = am.actor_id
+        JOIN movies m  ON m.id = am.movie_id
+        WHERE m.director IS NOT NULL
+          AND m.director != ''
+          AND a.actor_tier IN ('primary','network')
+        GROUP BY a.name, m.director
+        HAVING COUNT(*) >= 3
+        ORDER BY film_count DESC
+        LIMIT :lim
+    """), {"lim": limit}).fetchall()
+    return [
+        {"actor": r[0], "director": r[1], "film_count": r[2],
+         "industry": r[3], "films": list(r[4])[:5]}
+        for r in rows
+    ]
+
+
+def get_career_timeline(db: Session, actor_id: int) -> list:
+    """Films per year for a given actor."""
+    rows = db.execute(text("""
+        SELECT m.release_year AS year, COUNT(*) AS count
+        FROM movies m
+        JOIN actor_movies am ON am.movie_id = m.id
+        WHERE am.actor_id = :aid
+          AND m.release_year > 1950
+          AND m.release_year <= EXTRACT(YEAR FROM NOW())::int
+        GROUP BY m.release_year
+        ORDER BY m.release_year
+    """), {"aid": actor_id}).fetchall()
+    return [{"year": r[0], "count": r[1]} for r in rows]
+
+
+def get_top_costars(db: Session, limit: int = 15) -> list:
+    """Actors with the highest unique co-star counts across all tiers."""
+    rows = db.execute(text("""
+        WITH costar_counts AS (
+            SELECT am1.actor_id,
+                   COUNT(DISTINCT am2.actor_id) AS unique_costars,
+                   COUNT(DISTINCT am1.movie_id) AS film_count
+            FROM actor_movies am1
+            JOIN actor_movies am2
+              ON am1.movie_id = am2.movie_id AND am1.actor_id != am2.actor_id
+            GROUP BY am1.actor_id
+        )
+        SELECT a.id, a.name, a.industry, cc.unique_costars, cc.film_count
+        FROM actors a
+        JOIN costar_counts cc ON cc.actor_id = a.id
+        WHERE a.actor_tier IN ('primary','network')
+        ORDER BY cc.unique_costars DESC
+        LIMIT :lim
+    """), {"lim": limit}).fetchall()
+    return [
+        {"id": r[0], "name": r[1], "industry": r[2],
+         "unique_costars": r[3], "film_count": r[4]}
+        for r in rows
+    ]
+
+
+def find_actor_connection(db: Session, actor1_id: int, actor2_id: int,
+                          max_depth: int = 6) -> dict:
+    """
+    BFS shortest path between two actors through the collaboration graph.
+    Returns path (list of actors) + connecting movies for each edge.
+    """
+    from collections import defaultdict, deque
+
+    # Build adjacency list: actor_id -> {neighbor_id: (movie_id, movie_title)}
+    # One movie per pair, chosen by highest popularity.
+    rows = db.execute(text("""
+        SELECT DISTINCT ON (am1.actor_id, am2.actor_id)
+            am1.actor_id, am2.actor_id, m.id, m.title
+        FROM actor_movies am1
+        JOIN actor_movies am2
+          ON am1.movie_id = am2.movie_id AND am1.actor_id < am2.actor_id
+        JOIN movies m ON m.id = am1.movie_id
+        ORDER BY am1.actor_id, am2.actor_id, m.popularity DESC NULLS LAST
+    """)).fetchall()
+
+    graph: dict[int, dict[int, tuple]] = defaultdict(dict)
+    for a, b, mid, mtitle in rows:
+        graph[a][b] = (mid, mtitle or "Unknown")
+        graph[b][a] = (mid, mtitle or "Unknown")
+
+    if actor1_id == actor2_id:
+        row = db.execute(text("SELECT id, name FROM actors WHERE id=:id"),
+                         {"id": actor1_id}).fetchone()
+        return {"found": True, "depth": 0,
+                "path": [{"id": row[0], "name": row[1]}], "connections": []}
+
+    # BFS
+    visited = {actor1_id}
+    prev: dict[int, tuple] = {}   # neighbor -> (from_actor_id, movie_id, movie_title)
+    queue = deque([actor1_id])
+    found = False
+
+    while queue and not found:
+        current = queue.popleft()
+        if len(prev) > 500_000:   # safety cap
+            break
+        for neighbor, (mid, mtitle) in graph[current].items():
+            if neighbor not in visited:
+                visited.add(neighbor)
+                prev[neighbor] = (current, mid, mtitle)
+                if neighbor == actor2_id:
+                    found = True
+                    break
+                queue.append(neighbor)
+
+    if not found:
+        return {"found": False, "depth": -1, "path": [], "connections": []}
+
+    # Reconstruct path
+    path_ids, connections = [], []
+    cur = actor2_id
+    while cur in prev:
+        prev_actor, movie_id, movie_title = prev[cur]
+        path_ids.insert(0, cur)
+        connections.insert(0, {"movie_id": movie_id, "movie_title": movie_title})
+        cur = prev_actor
+    path_ids.insert(0, actor1_id)
+
+    # Fetch actor names
+    actor_rows = db.execute(
+        text("SELECT id, name FROM actors WHERE id = ANY(:ids)"),
+        {"ids": path_ids}
+    ).fetchall()
+    name_map = {r[0]: r[1] for r in actor_rows}
+
+    return {
+        "found": True,
+        "depth": len(path_ids) - 1,
+        "path": [{"id": aid, "name": name_map.get(aid, "?")} for aid in path_ids],
+        "connections": connections,
+    }

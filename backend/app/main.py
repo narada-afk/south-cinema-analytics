@@ -86,14 +86,17 @@ def health_check(db: Session = Depends(get_db)):
 )
 def search_actors(
     q: str = Query(..., min_length=1, description="Partial actor name to search for"),
+    lead_only: bool = Query(False, description="If true, return only lead/primary actors"),
     db: Session = Depends(get_db),
 ):
     """
     Case-insensitive partial-match search on actor names. Returns at most 20 results.
 
+    Pass `lead_only=true` to exclude supporting actors from results.
+
     Example:
     ```
-    GET /actors/search?q=vij
+    GET /actors/search?q=vij&lead_only=true
     ```
     ```json
     [
@@ -101,7 +104,7 @@ def search_actors(
     ]
     ```
     """
-    results = crud.search_actors(db, q)
+    results = crud.search_actors(db, q, lead_only=lead_only)
     return [schemas.ActorSearchResult(id=row.id, name=row.name) for row in results]
 
 
@@ -667,3 +670,75 @@ def get_top_production_houses(
         )
         for r in rows
     ]
+
+
+# ===========================================================================
+# Sprint 21 — Stats for Nerds  (GET /stats/*)
+# ===========================================================================
+
+@app.get("/stats/overview", tags=["Stats"])
+def stats_overview(db: Session = Depends(get_db)):
+    """Global counts: movies, ingested actors, actor→movie links, industries."""
+    return crud.get_stats_overview(db)
+
+
+@app.get("/stats/most-connected", tags=["Stats"])
+def stats_most_connected(
+    limit: int = Query(25, le=50, description="Max actors to return"),
+    db: Session = Depends(get_db),
+):
+    """Primary + network actors ranked by number of unique co-stars."""
+    return crud.get_most_connected_actors(db, limit)
+
+
+@app.get("/stats/industry-distribution", tags=["Stats"])
+def stats_industry_distribution(db: Session = Depends(get_db)):
+    """Film counts per South Indian industry with per-decade breakdown."""
+    return crud.get_industry_distribution(db)
+
+
+@app.get("/stats/top-partnerships", tags=["Stats"])
+def stats_top_partnerships(
+    limit: int = Query(15, le=30),
+    db: Session = Depends(get_db),
+):
+    """Most prolific actor–director partnerships (≥3 films together)."""
+    return crud.get_top_director_partnerships(db, limit)
+
+
+@app.get("/stats/career-timeline", tags=["Stats"])
+def stats_career_timeline(
+    actor_id: int = Query(..., description="Actor DB id"),
+    db: Session = Depends(get_db),
+):
+    """Films per year for the given actor."""
+    actor = crud.get_actor_by_id(db, actor_id)
+    if not actor:
+        raise HTTPException(status_code=404, detail="Actor not found")
+    data = crud.get_career_timeline(db, actor_id)
+    return {"actor_id": actor_id, "actor_name": actor.name, "data": data}
+
+
+@app.get("/stats/top-costars", tags=["Stats"])
+def stats_top_costars(
+    limit: int = Query(15, le=30),
+    db: Session = Depends(get_db),
+):
+    """Actors with the most unique co-stars (highest network centrality)."""
+    return crud.get_top_costars(db, limit)
+
+
+@app.get("/stats/connection", tags=["Stats"])
+def stats_connection(
+    actor1_id: int = Query(..., description="Start actor DB id"),
+    actor2_id: int = Query(..., description="End actor DB id"),
+    db: Session = Depends(get_db),
+):
+    """
+    BFS shortest collaboration path between two actors.
+    Returns path nodes and the connecting film at each step.
+    """
+    for aid in (actor1_id, actor2_id):
+        if not crud.get_actor_by_id(db, aid):
+            raise HTTPException(status_code=404, detail=f"Actor {aid} not found")
+    return crud.find_actor_connection(db, actor1_id, actor2_id)

@@ -12,6 +12,7 @@ const TABS = [
   { label: 'Malayalam',  value: 'malayalam', href: '/?industry=malayalam' },
   { label: 'Kannada',    value: 'kannada',   href: '/?industry=kannada' },
   { label: 'Compare',    value: 'compare',   href: '/compare' },
+  { label: 'Stats',      value: 'stats',     href: '/stats' },
   { label: 'More',       value: 'more',      href: '/more' },
 ]
 
