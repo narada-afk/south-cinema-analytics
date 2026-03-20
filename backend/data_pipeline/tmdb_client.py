@@ -80,6 +80,7 @@ _SEARCH_URL           = f"{_TMDB_BASE}/search/movie"
 _CREDITS_URL          = f"{_TMDB_BASE}/movie/{{tmdb_id}}/credits"   # Sprint 8
 _PERSON_SEARCH_URL    = f"{_TMDB_BASE}/search/person"               # Sprint 9
 _PERSON_CREDITS_URL   = f"{_TMDB_BASE}/person/{{person_id}}/movie_credits"  # Sprint 9
+_MOVIE_DETAIL_URL     = f"{_TMDB_BASE}/movie/{{tmdb_id}}"           # Sprint 23
 _POSTER_BASE_URL      = "https://image.tmdb.org/t/p/w500"
 _BACKDROP_BASE_URL    = "https://image.tmdb.org/t/p/w780"
 
@@ -446,3 +447,61 @@ def fetch_person_movie_credits(person_id: int) -> list[dict]:
     # Newest films first (matching enrich_tmdb_movies ordering convention)
     results.sort(key=lambda m: m["release_year"] or 0, reverse=True)
     return results
+
+
+# ---------------------------------------------------------------------------
+# Sprint 23 — Movie detail (revenue / budget / runtime)
+# ---------------------------------------------------------------------------
+
+def fetch_movie_details(tmdb_id: int) -> Optional[dict]:
+    """
+    Fetch full movie details from TMDB for a known movie ID.
+
+    Calls:
+        GET https://api.themoviedb.org/3/movie/{tmdb_id}
+
+    This endpoint returns the complete movie record including financial data
+    (revenue, budget) that is not available via the search endpoint.
+
+    Parameters
+    ----------
+    tmdb_id : int
+        The TMDB numeric movie ID (as stored in movies.tmdb_id).
+
+    Returns
+    -------
+    dict with keys:
+        revenue  : int   — worldwide box office gross in USD (0 = unknown)
+        budget   : int   — production budget in USD (0 = unknown)
+        runtime  : int | None  — runtime in minutes
+
+    Returns None on API error.  Returns dict with revenue/budget = 0 when
+    TMDB has no financial data for that film (the default for most titles).
+
+    Notes
+    -----
+    TMDB stores box office figures in USD as contributed by the community.
+    Coverage is excellent for major international releases; South Indian
+    blockbusters (KGF, Baahubali, RRR, Pushpa, etc.) are well-covered.
+    Smaller/older films typically return revenue = 0.
+
+    Example
+    -------
+    >>> details = fetch_movie_details(1071382)   # KGF Chapter 2
+    >>> details["revenue"]
+    120000000
+    """
+    api_key = _get_api_key()
+    url     = _MOVIE_DETAIL_URL.format(tmdb_id=tmdb_id)
+    params  = {"api_key": api_key, "language": "en-US"}
+
+    try:
+        data = _api_get(url, params)
+    except requests.RequestException:
+        return None
+
+    return {
+        "revenue": data.get("revenue") or 0,
+        "budget":  data.get("budget")  or 0,
+        "runtime": data.get("runtime") or None,
+    }
