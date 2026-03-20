@@ -128,7 +128,7 @@ async function fetchInsightCards(industry?: string): Promise<InsightCardData[]> 
 
 async function fetchTrendingActors(industry?: string): Promise<TrendingActor[]> {
   try {
-    const actors = await getActors()
+    const actors = await getActors(true)
     if (!actors.length) return FALLBACK_TRENDING
 
     // Filter by industry when a tab is selected (case-insensitive match)
@@ -139,8 +139,8 @@ async function fetchTrendingActors(industry?: string): Promise<TrendingActor[]> 
           )
         : actors
 
-    // Cap at 20 for the horizontal scroll row
-    return filtered.slice(0, 20).map((a) => ({
+    // Cap at 50 — all primary actors fit comfortably in the scroll row
+    return filtered.slice(0, 50).map((a) => ({
       id: a.id,
       name: a.name,
     }))

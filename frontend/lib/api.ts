@@ -114,8 +114,9 @@ export async function getTopCollaborations(
   )
 }
 
-export async function getActors(): Promise<Actor[]> {
-  return apiFetch<Actor[]>('/actors')
+export async function getActors(primaryOnly = false): Promise<Actor[]> {
+  const params = primaryOnly ? '?primary_only=true' : ''
+  return apiFetch<Actor[]>(`/actors${params}`)
 }
 
 export async function searchActors(q: string, leadOnly = false): Promise<Actor[]> {
