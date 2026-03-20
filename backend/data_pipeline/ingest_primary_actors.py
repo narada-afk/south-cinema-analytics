@@ -127,6 +127,9 @@ PHASE1_ACTORS: list[tuple[str, str]] = [
     ("Rakshit Shetty",     "Kannada"),
     ("Rishab Shetty",      "Kannada"),
     ("Sudeep",             "Kannada"),
+    ("Puneet Rajkumar",    "Kannada"),
+    ("Upendra",            "Kannada"),
+    ("Raj B Shetty",       "Kannada"),
 ]
 
 #: TASK 2: Actors already in the DB with industry='Unknown' who are NOT in
@@ -142,6 +145,7 @@ UNKNOWN_INDUSTRY_FIXES: list[tuple[str, str]] = [
     ("Unni Mukundan",       "Malayalam"),
     ("Shiva Rajkumar",      "Kannada"),
     ("Dhananjay",           "Kannada"),
+    ("Upendra",             "Kannada"),
 ]
 
 #: Maps TMDB original_language ISO 639-1 code → movies.industry string.
