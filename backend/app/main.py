@@ -114,16 +114,21 @@ def search_actors(
     summary="List all actors",
     tags=["Actors"],
 )
-def list_actors(db: Session = Depends(get_db)):
+def list_actors(
+    primary_only: bool = Query(False, description="If true, return only primary actors"),
+    db: Session = Depends(get_db),
+):
     """
-    Returns every actor in the database (id, name, industry, debut_year).
+    Returns actors in the database (id, name, industry, debut_year).
+
+    Pass `primary_only=true` to return only primary/lead actors.
 
     Example:
     ```
-    GET /actors
+    GET /actors?primary_only=true
     ```
     """
-    return crud.get_all_actors(db)
+    return crud.get_all_actors(db, primary_only=primary_only)
 
 
 @app.get(

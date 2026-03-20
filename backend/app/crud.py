@@ -24,9 +24,15 @@ from . import models, schemas
 # Core actor helpers  (used by multiple endpoints)
 # ===========================================================================
 
-def get_all_actors(db: Session):
-    """Return all actors from the database (used by GET /actors)."""
-    return db.query(models.Actor).all()
+def get_all_actors(db: Session, primary_only: bool = False):
+    """Return actors from the database (used by GET /actors).
+
+    When primary_only=True, only actors with is_primary_actor=True are returned.
+    """
+    query = db.query(models.Actor)
+    if primary_only:
+        query = query.filter(models.Actor.is_primary_actor == True)  # noqa: E712
+    return query.all()
 
 
 def get_actor_by_name(db: Session, name: str) -> Optional[models.Actor]:
