@@ -130,6 +130,7 @@ PHASE1_ACTORS: list[tuple[str, str]] = [
     ("Puneet Rajkumar",    "Kannada"),
     ("Upendra",            "Kannada"),
     ("Raj B Shetty",       "Kannada"),
+    ("Darshan",            "Kannada"),
 ]
 
 #: TASK 2: Actors already in the DB with industry='Unknown' who are NOT in
