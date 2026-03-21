@@ -1268,3 +1268,116 @@ def get_gravity_center(db: Session, limit: int = 25) -> list:
         }
         for aid in top_ids
     ]
+
+
+# ===========================================================================
+# Top box office  (GET /analytics/top-box-office)  Sprint 23
+# ===========================================================================
+
+def get_top_box_office(
+    db: Session,
+    industry: Optional[str] = None,
+    limit: int = 10,
+) -> list[dict]:
+    """
+    Return the top-grossing films ranked by box_office (INR crore).
+
+    Data source
+    -----------
+    Reads from ``movies.box_office`` (populated by enrich_box_office.py).
+    Only rows where box_office IS NOT NULL are included.
+
+    Actor association
+    -----------------
+    Left-joins ``actor_movies`` + ``actors`` to attach the primary actors
+    (is_primary_actor = TRUE) who appeared in each film.  Returns their
+    names and DB ids as parallel lists so the frontend can render avatars
+    and build profile links without additional requests.
+
+    Filtering
+    ---------
+    industry : case-insensitive match against ``movies.industry``.
+               Pass None / "all" / "explore" for the South-Indian-only view
+               (Telugu + Tamil + Malayalam + Kannada).
+    limit    : max rows to return (default 10).
+
+    Sanity cap
+    ----------
+    Films with box_office > 2 500 crore are excluded — a generous ceiling
+    that keeps genuine record-breakers (Baahubali 2 ≈ 2 358 Cr) while
+    silently dropping obvious TMDB data-entry errors.
+
+    Returns
+    -------
+    List of dicts with keys matching the BoxOfficeEntry schema.
+    Ordered by box_office DESC.
+    """
+    ind = (
+        industry.lower()
+        if industry and industry.lower() not in ("all", "explore")
+        else None
+    )
+
+    south_indian_filter = (
+        "AND LOWER(m.industry) = :ind"
+        if ind
+        else "AND m.industry IN ('Telugu', 'Tamil', 'Malayalam', 'Kannada')"
+    )
+
+    sql = text(f"""
+        SELECT
+            m.id,
+            m.title,
+            m.release_year,
+            m.industry,
+            ROUND(m.box_office::numeric, 1)         AS box_office_crore,
+            m.poster_url,
+            STRING_AGG(DISTINCT a.name, ', ')        AS actor_names,
+            STRING_AGG(DISTINCT a.id::text, ',')     AS actor_id_list
+        FROM   movies m
+        LEFT JOIN actor_movies am ON am.movie_id = m.id
+        LEFT JOIN actors a
+               ON a.id = am.actor_id
+              AND a.is_primary_actor = TRUE
+        WHERE  m.box_office IS NOT NULL
+          AND  m.box_office >    0
+          AND  m.box_office <= 2500
+          {south_indian_filter}
+        GROUP  BY m.id, m.title, m.release_year, m.industry,
+                  m.box_office, m.poster_url
+        ORDER  BY m.box_office DESC
+        LIMIT  :lim
+    """)
+
+    params: dict = {"lim": limit}
+    if ind:
+        params["ind"] = ind
+
+    rows = db.execute(sql, params).fetchall()
+
+    result = []
+    for row in rows:
+        # Parse comma-separated actor names / ids (may be empty when no
+        # primary actor is linked to this film in actor_movies)
+        names = (
+            [n.strip() for n in row.actor_names.split(",") if n.strip()]
+            if row.actor_names
+            else []
+        )
+        ids = (
+            [int(x) for x in row.actor_id_list.split(",") if x.strip().isdigit()]
+            if row.actor_id_list
+            else []
+        )
+        result.append(
+            {
+                "title":            row.title,
+                "release_year":     row.release_year,
+                "industry":         row.industry,
+                "box_office_crore": float(row.box_office_crore),
+                "actor_names":      names,
+                "actor_ids":        ids,
+                "poster_url":       row.poster_url,
+            }
+        )
+    return result

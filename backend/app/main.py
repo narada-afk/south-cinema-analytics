@@ -681,6 +681,68 @@ def get_top_production_houses(
 # Sprint 21 — Stats for Nerds  (GET /stats/*)
 # ===========================================================================
 
+@app.get(
+    "/analytics/top-box-office",
+    response_model=List[schemas.BoxOfficeEntry],
+    summary="Top-grossing South Indian films",
+    tags=["Analytics"],
+)
+def get_top_box_office(
+    industry: Optional[str] = Query(
+        default=None,
+        description=(
+            "Filter by industry — 'telugu', 'tamil', 'malayalam', 'kannada'. "
+            "Omit or pass 'all' for all South Indian industries combined."
+        ),
+    ),
+    limit: int = Query(
+        default=10,
+        ge=1,
+        le=50,
+        description="Max films to return (1–50, default 10)",
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns the highest-grossing South Indian films ranked by worldwide box
+    office revenue.
+
+    Revenue is stored in INR crore (converted from TMDB USD figures at
+    84.0 INR/USD by ``enrich_box_office.py``).  Films with no revenue data
+    on TMDB are excluded.  An upper sanity cap of 2 500 crore filters out
+    obvious TMDB data-entry errors.
+
+    Each entry includes the primary actors (``is_primary_actor = TRUE``) who
+    appeared in the film, so the frontend can render avatars and build profile
+    links without extra round-trips.
+
+    Example requests
+    ----------------
+    ```
+    GET /analytics/top-box-office
+    GET /analytics/top-box-office?industry=tamil&limit=5
+    ```
+
+    Example response
+    ----------------
+    ```json
+    [
+      {
+        "title": "Baahubali 2: The Conclusion",
+        "release_year": 2017,
+        "industry": "Telugu",
+        "box_office_crore": 2357.9,
+        "actor_names": ["Prabhas", "Rana Daggubati"],
+        "actor_ids": [3, 14],
+        "poster_url": "https://image.tmdb.org/t/p/w500/..."
+      }
+    ]
+    ```
+    """
+    rows = crud.get_top_box_office(db, industry=industry, limit=limit)
+    return [schemas.BoxOfficeEntry(**row) for row in rows]
+
+
 @app.get("/stats/overview", tags=["Stats"])
 def stats_overview(db: Session = Depends(get_db)):
     """Global counts: movies, ingested actors, actor→movie links, industries."""

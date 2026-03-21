@@ -321,3 +321,32 @@ class ProductionHouseStat(BaseModel):
     name: str
     film_count: int
     industries: Optional[str] = None  # comma-separated string from STRING_AGG
+
+
+# ===========================================================================
+# Box Office Schemas  (Sprint 23)
+# ===========================================================================
+
+class BoxOfficeEntry(BaseModel):
+    """
+    One film row returned by GET /analytics/top-box-office.
+
+    Fields
+    ------
+    title            : movie title
+    release_year     : release year
+    industry         : Telugu / Tamil / Malayalam / Kannada
+    box_office_crore : worldwide box office gross in INR crore
+                       (converted from TMDB USD revenue at 84.0 INR/USD)
+    actor_names      : primary actors who appeared in the film (from actor_movies
+                       where is_primary_actor = TRUE); empty list if none linked
+    actor_ids        : DB ids for actor_names (same order)
+    poster_url       : TMDB w500 poster URL (null until enrichment runs)
+    """
+    title: str
+    release_year: int
+    industry: str
+    box_office_crore: float
+    actor_names: List[str]
+    actor_ids: List[int]
+    poster_url: Optional[str] = None
