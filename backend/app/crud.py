@@ -1332,8 +1332,10 @@ def get_top_box_office(
             m.industry,
             ROUND(m.box_office::numeric, 1)         AS box_office_crore,
             m.poster_url,
-            STRING_AGG(DISTINCT a.name, ', ')        AS actor_names,
-            STRING_AGG(DISTINCT a.id::text, ',')     AS actor_id_list
+            -- Order by billing_order so the top-billed primary actor is first.
+            -- actor_movies PK is (actor_id, movie_id) so no duplicates per film.
+            STRING_AGG(a.name,      ', ' ORDER BY am.billing_order NULLS LAST) AS actor_names,
+            STRING_AGG(a.id::text,  ','  ORDER BY am.billing_order NULLS LAST) AS actor_id_list
         FROM   movies m
         LEFT JOIN actor_movies am ON am.movie_id = m.id
         LEFT JOIN actors a
