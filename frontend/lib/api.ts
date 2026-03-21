@@ -1,4 +1,9 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+// Server-side (SSR/RSC): use Docker-internal hostname so containers can talk.
+// Client-side (browser): use localhost which the browser can actually reach.
+const API_URL =
+  typeof window === 'undefined'
+    ? (process.env.API_URL          ?? 'http://backend:8000')   // server
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000') // browser
 
 async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
