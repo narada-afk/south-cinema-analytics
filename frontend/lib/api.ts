@@ -155,6 +155,21 @@ export async function getActorCollaborators(id: number | string): Promise<Collab
   return apiFetch<Collaborator[]>(`/actors/${id}/collaborators`)
 }
 
+export async function getActorLeadCollaborators(id: number | string): Promise<Collaborator[]> {
+  return apiFetch<Collaborator[]>(`/actors/${id}/lead-collaborators`)
+}
+
+export interface Blockbuster {
+  title: string
+  release_year: number
+  poster_url: string | null
+  box_office_crore: number
+}
+
+export async function getActorBlockbusters(id: number | string): Promise<Blockbuster[]> {
+  return apiFetch<Blockbuster[]>(`/actors/${id}/blockbusters`)
+}
+
 export async function getActorDirectors(id: number | string): Promise<DirectorCollab[]> {
   return apiFetch<DirectorCollab[]>(`/actors/${id}/directors`)
 }
@@ -239,7 +254,7 @@ export interface ConnectionPath {
   found:       boolean
   depth:       number
   path:        { id: number; name: string }[]
-  connections: { movie_id: number; movie_title: string }[]
+  connections: { movie_id: number; movie_title: string; poster_url: string | null; tmdb_id: number | null }[]
 }
 
 export async function getStatsOverview(): Promise<StatsOverview> {

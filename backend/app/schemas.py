@@ -114,6 +114,16 @@ class ActorMovieOut(BaseModel):
 # Analytics / Collaboration Schemas
 # ===========================================================================
 
+class BlockbusterOut(BaseModel):
+    title: str
+    release_year: int
+    poster_url: Optional[str] = None
+    box_office_crore: float
+
+    class Config:
+        from_attributes = True
+
+
 class CollaboratorOut(BaseModel):
     """
     One row in GET /actors/{actor_id}/collaborators.

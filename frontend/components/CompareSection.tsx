@@ -8,9 +8,10 @@ import { searchActors, type Actor } from '@/lib/api'
 interface CompareSectionProps {
   currentActor: { id: number; name: string }
   suggestions: Actor[]
+  actorGender?: 'M' | 'F' | null
 }
 
-export default function CompareSection({ currentActor, suggestions }: CompareSectionProps) {
+export default function CompareSection({ currentActor, suggestions, actorGender }: CompareSectionProps) {
   const router = useRouter()
 
   const [query,   setQuery]   = useState('')
@@ -28,14 +29,17 @@ export default function CompareSection({ currentActor, suggestions }: CompareSec
     const tid = setTimeout(async () => {
       try {
         const res = await searchActors(query)
-        const filtered = res.filter(a => a.id !== currentActor.id).slice(0, 7)
+        const filtered = res
+          .filter(a => a.id !== currentActor.id)
+          .filter(a => !actorGender || !a.gender || a.gender === actorGender)
+          .slice(0, 7)
         setResults(filtered)
         setOpen(filtered.length > 0)
       } catch { setResults([]) }
       finally  { setLoading(false) }
     }, 220)
     return () => clearTimeout(tid)
-  }, [query, currentActor.id])
+  }, [query, currentActor.id, actorGender])
 
   // Close on outside click
   useEffect(() => {
@@ -62,7 +66,7 @@ export default function CompareSection({ currentActor, suggestions }: CompareSec
       {/* Header */}
       <div className="mb-6">
         <h2 className="text-white font-bold text-lg flex items-center gap-2">
-          ⚡ Compare with another actor
+          ⚡ Compare with another {actorGender === 'F' ? 'actress' : 'actor'}
         </h2>
         <p className="text-white/40 text-sm mt-1">Side-by-side career stats</p>
       </div>
@@ -94,7 +98,7 @@ export default function CompareSection({ currentActor, suggestions }: CompareSec
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search any actor…"
+            placeholder={`Search any ${actorGender === 'F' ? 'actress' : 'actor'}…`}
             className="flex-1 bg-transparent py-3.5 text-white placeholder-white/25 outline-none text-sm"
           />
           {loading && (
