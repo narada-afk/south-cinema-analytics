@@ -5,12 +5,15 @@
   "description": "Highlight any actor name to instantly see their South Indian cinema analytics.",
 
   "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["http://localhost:8000/*"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://api.southcinema.app/*"
+  ],
 
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["config.js", "content.js"],
       "css": ["popup.css"],
       "run_at": "document_idle"
     }

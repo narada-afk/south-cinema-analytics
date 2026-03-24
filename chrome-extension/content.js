@@ -3,7 +3,7 @@
  * Detects text selection → queries actor API → renders floating popup.
  */
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = SCA_CONFIG.API_BASE;
 const CURRENT_YEAR = new Date().getFullYear();
 
 // ─── State ─────────────────────────────────────────────────────────────────
