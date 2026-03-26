@@ -14,7 +14,7 @@ Ready for a future service layer:
 
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, text, case, union, select
+from sqlalchemy import func, text, case, union, select, or_
 
 from app import models
 
@@ -131,18 +131,37 @@ class ActorRepository:
 
     # ── Filmography ────────────────────────────────────────────────────────────
 
+    # Character names that indicate a non-acting appearance (narrator, voice, cameo etc.)
+    _NON_ACTING_PATTERNS = [
+        'narrator', 'narration', '(voice)', 'voice)',
+        'himself', 'herself', 'cameo', 'self -',
+    ]
+
+    def _is_non_acting(self, character_name: str | None) -> bool:
+        if not character_name:
+            return False
+        low = character_name.lower()
+        return any(p in low for p in self._NON_ACTING_PATTERNS)
+
     def get_movies(self, db: Session, actor_id: int) -> list[models.Movie]:
         """
         All movies for an actor, newest first.
         Unions both ingestion pipelines:
           • cast        → Wikidata-sourced (original actors)
           • actor_movies → TMDB-sourced (supporting + Malayalam expansion)
+        Excludes non-acting roles (narrator, voice-only, cameo, himself/herself).
         """
         cast_ids = select(models.Cast.movie_id).where(
             models.Cast.actor_id == actor_id
         )
+        # Exclude narrator / voice / cameo / himself roles from TMDB pipeline
+        non_acting = [f"%{p}%" for p in self._NON_ACTING_PATTERNS]
         tmdb_ids = select(models.ActorMovie.movie_id).where(
-            models.ActorMovie.actor_id == actor_id
+            models.ActorMovie.actor_id == actor_id,
+            ~or_(*[
+                func.lower(models.ActorMovie.character_name).like(p)
+                for p in non_acting
+            ])
         )
         all_ids = union(cast_ids, tmdb_ids).scalar_subquery()
 
