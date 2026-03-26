@@ -45,12 +45,14 @@ export default function CollaborationsSection({
   // For a female actor → show male lead co-stars ("Lead Actors")
   const leadLabel = actorGender === 'F' ? '🎬 Lead Actors' : '✨ Lead Actresses'
 
-  // Use leadCollaborators (primary-role only) for the actresses section
+  // Use ALL collaborators for the actresses section — NOT leadCollaborators.
+  // TMDB marks heroines as role_type='supporting' (billed after the male lead),
+  // so leadCollaborators (primary-role for both) misses most lead actresses.
   const actresses = actorGender === 'F'
-    // actress page: show known males from lead collaborators
-    ? leadCollaborators.filter(c => genderMap[c.actor.toLowerCase()] === 'M')
-    // actor page: show females from lead collaborators
-    : leadCollaborators.filter(c => femaleNames.has(c.actor.toLowerCase()))
+    // actress page: show known males from all collaborators
+    ? collaborators.filter(c => genderMap[c.actor.toLowerCase()] === 'M')
+    // actor page: show females from all collaborators
+    : collaborators.filter(c => femaleNames.has(c.actor.toLowerCase()))
 
   // Build latest year each director worked with this actor (from movies already fetched)
   const dirLatestYear: Record<string, number> = {}
