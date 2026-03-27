@@ -22,7 +22,7 @@ export default function CompareSection({ currentActor, suggestions, actorGender 
   const inputRef = useRef<HTMLInputElement>(null)
   const dropRef  = useRef<HTMLDivElement>(null)
 
-  // Debounced search
+  // Debounced search — filter to same gender when known
   useEffect(() => {
     if (!query.trim()) { setResults([]); setOpen(false); return }
     setLoading(true)
@@ -54,8 +54,12 @@ export default function CompareSection({ currentActor, suggestions, actorGender 
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  function navigate(targetId: number) {
-    router.push(`/compare/${currentActor.id}-vs-${targetId}`)
+  function toSlug(name: string) {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  }
+
+  function navigate(targetName: string) {
+    router.push(`/compare/${toSlug(currentActor.name)}-vs-${toSlug(targetName)}`)
   }
 
   return (
@@ -77,7 +81,7 @@ export default function CompareSection({ currentActor, suggestions, actorGender 
           {suggestions.slice(0, 6).map(s => (
             <button
               key={s.id}
-              onClick={() => navigate(s.id)}
+              onClick={() => navigate(s.name)}
               className="flex items-center gap-2 px-3 py-2 rounded-full border border-white/[0.08] hover:border-white/25 hover:bg-white/[0.06] transition-all group"
               style={{ background: '#0d0d15' }}
             >
@@ -117,7 +121,7 @@ export default function CompareSection({ currentActor, suggestions, actorGender 
               <button
                 key={a.id}
                 onMouseDown={e => e.preventDefault()}
-                onClick={() => navigate(a.id)}
+                onClick={() => navigate(a.name)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.08] transition-colors text-left border-b border-white/[0.05] last:border-0"
               >
                 <ActorAvatar name={a.name} size={32} />

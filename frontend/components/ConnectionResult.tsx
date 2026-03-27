@@ -482,7 +482,7 @@ export default function ConnectionResult({ result }: { result: ConnectionPath })
                       // Part 3: payoff only on the very last actor, after done
                       payoff={showPayoff && i === maxStep}
                       done={done}
-                      onClick={() => router.push(`/actors/${item.id}`)}
+                      onClick={() => router.push(`/actors/${item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`)}
                     />
                   ) : (
                     <MovieNode

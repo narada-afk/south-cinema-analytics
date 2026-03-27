@@ -134,8 +134,9 @@ class CollaboratorOut(BaseModel):
     One row in GET /actors/{actor_id}/collaborators.
     Sourced from the actor_collaborations precomputed table.
     """
-    actor: str      # co-star's name
-    films: int      # number of shared films
+    actor: str       # co-star's name
+    films: int       # number of shared films
+    actor_id: int = 0  # co-star's database ID (useful for building shared-films URLs)
 
 
 class DirectorCollabOut(BaseModel):

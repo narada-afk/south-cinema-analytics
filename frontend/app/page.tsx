@@ -76,14 +76,18 @@ async function fetchPageData(industry: string) {
     const insightCards: InsightCardData[] = insights.slice(0, 3).map((insight, i) => {
       const meta = INSIGHT_META[insight.type] ?? { emoji: '🎭', label: 'Cinema Fact' }
 
+      function toSlug(name: string) {
+        return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      }
+
       let href = '#'
       if (
         (insight.type === 'collaboration' || insight.type === 'collab_shock') &&
-        insight.actor_ids.length === 2
+        insight.actors.length === 2
       ) {
-        href = `/compare/${insight.actor_ids[0]}-vs-${insight.actor_ids[1]}`
-      } else if (insight.actor_ids.length > 0) {
-        href = `/actors/${insight.actor_ids[0]}`
+        href = `/compare/${toSlug(insight.actors[0])}-vs-${toSlug(insight.actors[1])}`
+      } else if (insight.actors.length > 0) {
+        href = `/actors/${toSlug(insight.actors[0])}`
       }
 
       // WOW subtext takes priority; fall back to legacy director label
@@ -227,7 +231,7 @@ export default async function HomePage({
   const networkData = await fetchNetworkData(networkCenter)
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
+    <>
       <Header />
 
       <main className="max-w-[1200px] mx-auto px-6 pb-24">
@@ -245,7 +249,7 @@ export default async function HomePage({
 
         {/* ── 3. Graph Preview ─────────────────────────────────────────────── */}
         <section className="mt-16">
-          <GraphPreview networkData={networkData} />
+          <GraphPreview networkData={networkData} suggestions={trendingChips} />
         </section>
 
         {/* ── 4. Insights (auto-scroll carousel) ───────────────────────────── */}
@@ -257,6 +261,6 @@ export default async function HomePage({
         </section>
 
       </main>
-    </div>
+    </>
   )
 }

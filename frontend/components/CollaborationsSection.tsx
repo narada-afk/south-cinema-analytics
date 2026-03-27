@@ -6,6 +6,7 @@ import Link from 'next/link'
 import ActorAvatar from './ActorAvatar'
 import DirectorsSection from './DirectorsSection'
 import ScrollRow from './ScrollRow'
+import { toActorSlug } from '@/lib/api'
 import type { Collaborator, DirectorCollab, Actor, ActorMovie, Blockbuster } from '@/lib/api'
 
 interface CollaborationsSectionProps {
@@ -117,7 +118,7 @@ export default function CollaborationsSection({
                   </div>
                 )
                 return actorId ? (
-                  <Link key={c.actor} href={`/actors/${actorId}`}>{inner}</Link>
+                  <Link key={c.actor} href={`/actors/${toActorSlug(c.actor)}`}>{inner}</Link>
                 ) : (
                   <div key={c.actor}>{inner}</div>
                 )

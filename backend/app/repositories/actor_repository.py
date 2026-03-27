@@ -178,12 +178,13 @@ class ActorRepository:
         """
         Top co-stars ordered by collaboration count.
         Reads precomputed actor_collaborations table — O(1) per actor.
-        Returns (name, collaboration_count) tuples.
+        Returns (name, collaboration_count, actor_id) tuples.
         """
         return (
             db.query(
                 models.Actor.name,
                 models.ActorCollaboration.collaboration_count,
+                models.Actor.id,
             )
             .join(
                 models.ActorCollaboration,
@@ -261,7 +262,7 @@ class ActorRepository:
             FROM (
                 SELECT movie_id FROM actor_movies WHERE actor_id = :a1
                 UNION
-                SELECT movie_id FROM cast       WHERE actor_id = :a1
+                SELECT movie_id FROM "cast"      WHERE actor_id = :a1
             ) ids
             JOIN movies m ON m.id = ids.movie_id
             LEFT JOIN actor_movies am1 ON am1.movie_id = m.id AND am1.actor_id = :a1
@@ -269,7 +270,7 @@ class ActorRepository:
             WHERE ids.movie_id IN (
                 SELECT movie_id FROM actor_movies WHERE actor_id = :a2
                 UNION
-                SELECT movie_id FROM cast       WHERE actor_id = :a2
+                SELECT movie_id FROM "cast"      WHERE actor_id = :a2
             )
             ORDER BY m.release_year DESC
         """), {"a1": actor1_id, "a2": actor2_id}).fetchall()

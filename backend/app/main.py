@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .core.config import settings
 from .database import SessionLocal
 from .services.graph_service import graph_service
-from .routers import actors, analytics, stats, health
+from .routers import actors, analytics, stats, health, data_health
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
@@ -79,3 +79,4 @@ app.include_router(health.router)
 app.include_router(actors.router)
 app.include_router(analytics.router)
 app.include_router(stats.router)
+app.include_router(data_health.router)

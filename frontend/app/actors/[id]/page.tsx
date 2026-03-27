@@ -1,139 +1,20 @@
-import { notFound } from 'next/navigation'
-import Header from '@/components/Header'
-import ActorHero from '@/components/ActorHero'
-import FilmographyPreview from '@/components/FilmographyPreview'
-import CollaborationsSection from '@/components/CollaborationsSection'
-import CompareSection from '@/components/CompareSection'
-import ActorConnections from '@/components/ActorConnections'
-import ActorInsightsCarousel from '@/components/ActorInsightsCarousel'
-import FullFilmography from '@/components/FullFilmography'
-import {
-  getActor,
-  getActorMovies,
-  getActorCollaborators,
-  getActorLeadCollaborators,
-  getActorDirectors,
-  getActorBlockbusters,
-  getActors,
-} from '@/lib/api'
-
-export const dynamic = 'force-dynamic'
+// Legacy numeric ID URLs → redirect to name-based slugs
+import { redirect, notFound } from 'next/navigation'
+import { getActor } from '@/lib/api'
 
 interface PageProps {
   params: { id: string }
 }
 
-export default async function ActorPage({ params }: PageProps) {
-  const id = params.id
+export const dynamic = 'force-dynamic'
 
-  // Fetch all data in parallel — individual failures are caught gracefully
-  const [actor, movies, collaborators, leadCollaborators, directors, blockbusters, allActors, allFemaleActors] = await Promise.all([
-    getActor(id).catch(() => null),
-    getActorMovies(id).catch(() => []),
-    getActorCollaborators(id).catch(() => []),
-    getActorLeadCollaborators(id).catch(() => []),
-    getActorDirectors(id).catch(() => []),
-    getActorBlockbusters(id).catch(() => []),
-    getActors().catch(() => []),
-    getActors(false, 'F').catch(() => []),
-  ])
+export default async function ActorIdRedirect({ params }: PageProps) {
+  // Only redirect numeric IDs; non-numeric paths shouldn't reach here
+  if (!/^\d+$/.test(params.id)) notFound()
 
-  console.log('[actor page] API response:', actor?.name ?? 'null',
-    '| movies:', movies.length,
-    '| collaborators:', collaborators.length,
-    '| directors:', directors.length)
-
+  const actor = await getActor(params.id).catch(() => null)
   if (!actor) notFound()
 
-  // Build name → id map from full actors list for collaborator linking
-  const actorIdMap: Record<string, number> = {}
-  for (const a of allActors) {
-    if (a.name) actorIdMap[a.name] = a.id
-  }
-
-  // gender isn't on the single-actor endpoint — look it up from allActors list
-  const actorGender = allActors.find(a => a.id === Number(id))?.gender ?? null
-
-  // Compare suggestions: confirmed same gender only, excluding self
-  const suggestions = allActors
-    .filter(a => a.id !== Number(id))
-    .filter(a => !actorGender || a.gender === actorGender)
-    .slice(0, 8)
-
-  // Earliest film for hero "First film" line — exclude TBA (year 0 or null)
-  const firstFilm = movies.length > 0
-    ? [...movies]
-        .filter(m => m.release_year && m.release_year > 0)
-        .sort((a, b) => a.release_year - b.release_year)[0] ?? null
-    : null
-
-  return (
-    <div className="min-h-screen bg-[#0a0a0f]">
-      <Header />
-
-      <main className="max-w-[1200px] mx-auto px-6 pb-24 flex flex-col gap-14">
-
-        {/* ── 1. Hero ───────────────────────────────────────────── */}
-        <ActorHero
-          actor={actor}
-          collaboratorCount={collaborators.length}
-          directorCount={directors.length}
-          firstFilm={firstFilm ? { title: firstFilm.title, year: firstFilm.release_year } : null}
-        />
-
-        {/* ── 2. Filmography Preview (horizontal strip) — released films only ── */}
-        {movies.length > 0 && (
-          <FilmographyPreview
-            movies={movies.filter(m => m.release_year && m.release_year > 0)}
-            totalCount={movies.length}
-          />
-        )}
-
-        {/* ── 3. Collaborations (actresses · directors · co-stars) ── */}
-        {(collaborators.length > 0 || directors.length > 0) && (
-          <CollaborationsSection
-            collaborators={collaborators}
-            leadCollaborators={leadCollaborators}
-            directors={directors}
-            blockbusters={blockbusters}
-            movies={movies}
-            allActors={allActors}
-            allFemaleActors={allFemaleActors}
-            actorIdMap={actorIdMap}
-            actorGender={actorGender}
-          />
-        )}
-
-        {/* ── 4. Compare ────────────────────────────────────────── */}
-        <CompareSection
-          currentActor={{ id: Number(id), name: actor.name }}
-          suggestions={suggestions}
-          actorGender={actorGender}
-        />
-
-        {/* ── 5. Connections (inline BFS finder) ────────────────── */}
-        <ActorConnections
-          actor={{ id: Number(id), name: actor.name, industry: actor.industry }}
-        />
-
-        {/* ── 6. Insights (synthetic cards) ─────────────────────── */}
-        <ActorInsightsCarousel
-          actor={actor}
-          actorGender={actorGender}
-          collaborators={collaborators}
-          leadCollaborators={leadCollaborators}
-          directors={directors}
-          blockbusters={blockbusters}
-          allFemaleActors={allFemaleActors}
-          movies={movies}
-        />
-
-        {/* ── 7. Full Filmography (expandable grid) ─────────────── */}
-        {movies.length > 0 && (
-          <FullFilmography movies={movies} />
-        )}
-
-      </main>
-    </div>
-  )
+  const slug = actor.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  redirect(`/actors/${slug}`)
 }

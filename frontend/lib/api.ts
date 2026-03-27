@@ -15,6 +15,13 @@ async function apiFetch<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// ── URL helpers ──────────────────────────────────────────────────────────────
+
+/** Convert an actor name to a URL-safe slug, e.g. "Jr. NTR" → "jr-ntr" */
+export function toActorSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface Actor {
@@ -50,8 +57,9 @@ export interface ActorMovie {
 }
 
 export interface Collaborator {
-  actor: string   // co-star name
+  actor: string    // co-star name
   films: number
+  actor_id: number // co-star's database ID (0 when unavailable)
 }
 
 export interface DirectorCollab {
