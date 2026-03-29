@@ -2,7 +2,14 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { searchActors, getActorCollaborators, getActors, type Actor } from '@/lib/api'
+import {
+  searchActors,
+  getActorCollaborators,
+  getActorLeadCollaborators,
+  getActorDirectors,
+  getActors,
+  type Actor,
+} from '@/lib/api'
 
 // ── Exported types ────────────────────────────────────────────────────────────
 
@@ -10,6 +17,7 @@ export interface NetworkNode {
   id: number | null
   name: string
   films: number
+  kind: 'lead' | 'director' | 'supporting'
 }
 
 export interface NetworkCenter {
@@ -21,40 +29,63 @@ export interface NetworkCenter {
 // ── Layout constants ──────────────────────────────────────────────────────────
 
 const SVG_W    = 1100
-const SVG_H    = 380
+const SVG_H    = 400
 const CX       = SVG_W / 2
-const CY       = SVG_H / 2 - 5
-const RING_R   = 155
+const CY       = SVG_H / 2
 const CENTER_R = 21
 
-const COLORS = [
-  '#a78bfa', '#60a5fa', '#34d399', '#fbbf24',
-  '#f472b6', '#22d3ee', '#fb923c', '#a3e635',
-]
 const CENTER_COLOR = '#f5c518'
+
+// Kind colours
+const KIND_COLOR: Record<NetworkNode['kind'], string> = {
+  lead:       '#f472b6',   // rose — lead actress
+  director:   '#22d3ee',   // cyan — director
+  supporting: '#e2e8f0',   // soft white — supporting
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Deterministic seeded random (0–1) */
 function sr(seed: number): number {
   const x = Math.sin(seed * 9301 + 49297) * 233280
   return x - Math.floor(x)
 }
 
-function polarPos(i: number, total: number) {
-  const base   = (2 * Math.PI * i / total) - Math.PI / 2
-  const jitter = (sr(i * 7 + 13) - 0.5) * 0.26
-  const angle  = base + jitter
-  const r      = RING_R + (sr(i * 3 + 1) - 0.5) * 24
-  return { x: CX + r * Math.cos(angle), y: CY + r * Math.sin(angle) }
+/**
+ * Fully random scatter position — no circular pattern.
+ * kind nudges the base radius range but jitter dominates.
+ */
+function scatterPos(i: number, kind: NetworkNode['kind']): { x: number; y: number } {
+  // Fully random angle — no even division by total nodes
+  const angle = sr(i * 37 + 11) * 2 * Math.PI
+
+  // Base radius range per kind (leads slightly closer, supporting further out)
+  const [rMin, rMax] = kind === 'lead'
+    ? [58, 140]
+    : kind === 'director'
+    ? [75, 155]
+    : [90, 180]
+
+  const r = rMin + sr(i * 23 + 7) * (rMax - rMin)
+
+  // Additional random jitter so nodes at similar r don't form a faint ring
+  const jx = (sr(i * 53 + 17) - 0.5) * 28
+  const jy = (sr(i * 61 + 19) - 0.5) * 22
+
+  const x = Math.max(40, Math.min(SVG_W - 40, CX + r * Math.cos(angle) + jx))
+  const y = Math.max(22, Math.min(SVG_H - 22, CY + r * Math.sin(angle) + jy))
+  return { x, y }
 }
 
-function depth(i: number): number {
-  return 0.62 + sr(i * 5 + 29) * 0.38
+/** Visual size of a node's bright core */
+function coreR(films: number, isHov: boolean): number {
+  if (isHov) return 3.2
+  return 1.4 + Math.min(films * 0.04, 1.2)
 }
 
-function nodeR(films: number, d = 1): number {
-  const base = 14 + Math.min(films * 0.85, 10)
-  return Math.round(base * (0.78 + d * 0.22))
+/** Glow cloud radius (for hover bloom) */
+function glowR(films: number): number {
+  return 9 + Math.min(films * 0.3, 8)
 }
 
 function initials(name: string) {
@@ -252,18 +283,19 @@ export default function GraphPreview({
 
   useEffect(() => { setCenterImgError(false) }, [localCenter?.id])
 
-  // Background star field (seeded, stable)
+  // Background star field — scattered + milky-way band (seeded, stable)
   const bgStars = useMemo(() => {
     const stars: { x: number; y: number; r: number; op: number }[] = []
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 220; i++) {
       stars.push({
         x:  sr(i * 11 + 3) * SVG_W,
         y:  sr(i * 7  + 5) * SVG_H,
-        r:  sr(i * 13 + 1) * 1.1 + 0.15,
-        op: sr(i * 17 + 2) * 0.40 + 0.05,
+        r:  sr(i * 13 + 1) * 0.85 + 0.1,   // smaller: max ~0.95px
+        op: sr(i * 17 + 2) * 0.35 + 0.04,
       })
     }
-    for (let i = 0; i < 130; i++) {
+    // Milky way band density
+    for (let i = 0; i < 140; i++) {
       const t      = sr(i * 23 + 7)
       const spread = (sr(i * 31 + 11) - 0.5) * SVG_H * 0.28
       const bx     = t * (SVG_W * 1.1) - SVG_W * 0.05
@@ -271,8 +303,8 @@ export default function GraphPreview({
       stars.push({
         x:  Math.max(0, Math.min(SVG_W, bx)),
         y:  Math.max(0, Math.min(SVG_H, by)),
-        r:  sr(i * 19 + 3) * 1.3 + 0.20,
-        op: sr(i * 29 + 7) * 0.55 + 0.18,
+        r:  sr(i * 19 + 3) * 1.0 + 0.12,   // band stars slightly larger but still small
+        op: sr(i * 29 + 7) * 0.50 + 0.15,
       })
     }
     return stars
@@ -282,20 +314,41 @@ export default function GraphPreview({
     setHasChosen(true)
     setFetchingNetwork(true)
     try {
-      const [collaborators, actors] = await Promise.all([
+      // Fetch all three in parallel
+      const [collaborators, leadCollabs, directors] = await Promise.all([
         getActorCollaborators(actor.id),
-        getActors(true),
+        getActorLeadCollaborators(actor.id),
+        getActorDirectors(actor.id),
       ])
-      const nameToId    = new Map(actors.map(a => [a.name.toLowerCase().trim(), a.id]))
-      const centerActor = actors.find(a => a.id === actor.id)
-      setLocalCenter({ id: actor.id, name: actor.name, gender: centerActor?.gender ?? actor.gender ?? null })
-      setLocalNodes(
-        collaborators.slice(0, 8).map(c => ({
-          id:    nameToId.get(c.actor.toLowerCase().trim()) ?? null,
+
+      const leadNames = new Set(leadCollabs.map(l => l.actor.toLowerCase().trim()))
+      const dirNameSet = new Set(directors.slice(0, 7).map(d => d.director.toLowerCase().trim()))
+
+      const nodes: NetworkNode[] = []
+
+      // Directors first (up to 7)
+      directors.slice(0, 7).forEach(d => {
+        nodes.push({ id: null, name: d.director, films: d.films, kind: 'director' })
+      })
+
+      // Top collaborators, categorised, skip if already added as director
+      let added = 0
+      for (const c of collaborators) {
+        if (added >= 30) break
+        const nameLow = c.actor.toLowerCase().trim()
+        if (dirNameSet.has(nameLow)) continue   // already in directors layer
+        nodes.push({
+          id:    c.actor_id || null,
           name:  c.actor,
           films: c.films,
-        }))
-      )
+          kind:  leadNames.has(nameLow) ? 'lead' : 'supporting',
+        })
+        added++
+      }
+
+      const centerActor = { id: actor.id, name: actor.name, gender: actor.gender ?? null }
+      setLocalCenter(centerActor)
+      setLocalNodes(nodes)
     } catch {
       showToast('Failed to load network')
     } finally {
@@ -322,12 +375,19 @@ export default function GraphPreview({
   }
 
   const center    = localCenter
-  const nodes     = localNodes.slice(0, 8)
+  const nodes     = localNodes   // no slice — show all
+
+  // Stable positions (recompute only when node list changes)
   const positions = useMemo(
-    () => nodes.map((_, i) => polarPos(i, nodes.length)),
+    () => nodes.map((n, i) => scatterPos(i, n.kind)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodes.map(n => n.name).join(',')]
+    [nodes.map(n => `${n.name}:${n.kind}`).join(',')]
   )
+
+  // Legend counts
+  const leadCount      = nodes.filter(n => n.kind === 'lead').length
+  const directorCount  = nodes.filter(n => n.kind === 'director').length
+  const supportCount   = nodes.filter(n => n.kind === 'supporting').length
 
   return (
     <div
@@ -341,7 +401,30 @@ export default function GraphPreview({
             <span style={{ color: CENTER_COLOR, opacity: 0.8 }}>✦</span>
             {hasChosen && center ? center.name : 'Discover Connections'}
           </h2>
-          <p className="text-white/30 text-xs mt-0.5">Tap stars to explore connections</p>
+          {hasChosen && center && nodes.length > 0 ? (
+            <p className="text-white/30 text-xs mt-0.5 flex items-center gap-2">
+              {leadCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <span style={{ color: KIND_COLOR.lead }} className="text-[9px]">●</span>
+                  <span>{leadCount} leads</span>
+                </span>
+              )}
+              {directorCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <span style={{ color: KIND_COLOR.director }} className="text-[9px]">●</span>
+                  <span>{directorCount} directors</span>
+                </span>
+              )}
+              {supportCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <span className="text-white/40 text-[9px]">●</span>
+                  <span>{supportCount} supporting</span>
+                </span>
+              )}
+            </p>
+          ) : (
+            <p className="text-white/30 text-xs mt-0.5">Tap stars to explore connections</p>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 pt-1">
           {hasChosen && center && (
@@ -363,7 +446,7 @@ export default function GraphPreview({
         </div>
       </div>
 
-      {/* ── Empty state: centered search over starfield ── */}
+      {/* ── Empty state ── */}
       {!hasChosen && (
         <div className="relative rounded-b-3xl overflow-hidden" style={{ minHeight: 300 }}>
           <svg
@@ -406,10 +489,9 @@ export default function GraphPreview({
         </div>
       )}
 
-      {/* ── Constellation (after actor chosen) ── */}
+      {/* ── Constellation ── */}
       {hasChosen && (
         <div className="pb-5 relative">
-
           {fetchingNetwork && (
             <div
               className="absolute inset-0 flex items-center justify-center z-10 rounded-2xl"
@@ -432,7 +514,6 @@ export default function GraphPreview({
               <p className="text-white/20 text-sm">No collaboration data available yet</p>
             </div>
           ) : (
-
             <svg
               viewBox={`0 0 ${SVG_W} ${SVG_H}`}
               className="w-full"
@@ -440,12 +521,10 @@ export default function GraphPreview({
               onTouchStart={() => setHovered(null)}
             >
               <defs>
-                {/* Blur for galaxy band */}
+                {/* Galaxy atmosphere */}
                 <filter id="gp-galblur" x="-50%" y="-50%" width="200%" height="200%">
                   <feGaussianBlur stdDeviation="38"/>
                 </filter>
-
-                {/* Galaxy band gradient */}
                 <linearGradient id="gp-gband" x1="0.08" y1="0" x2="0.78" y2="1">
                   <stop offset="0%"   stopColor="#6496ff" stopOpacity="0"/>
                   <stop offset="25%"  stopColor="#90b4ff" stopOpacity="0.05"/>
@@ -454,37 +533,23 @@ export default function GraphPreview({
                   <stop offset="75%"  stopColor="#90b4ff" stopOpacity="0.04"/>
                   <stop offset="100%" stopColor="#6496ff" stopOpacity="0"/>
                 </linearGradient>
-
                 <radialGradient id="gp-gwarm" cx="50%" cy="50%" r="50%">
                   <stop offset="0%"   stopColor="#ff9040" stopOpacity="0.10"/>
                   <stop offset="55%"  stopColor="#ff6820" stopOpacity="0.04"/>
                   <stop offset="100%" stopColor="#ff4400" stopOpacity="0"/>
                 </radialGradient>
-
                 <radialGradient id="gp-gcool" cx="50%" cy="50%" r="50%">
                   <stop offset="0%"   stopColor="#7050f8" stopOpacity="0.09"/>
                   <stop offset="55%"  stopColor="#5538d8" stopOpacity="0.03"/>
                   <stop offset="100%" stopColor="#3820b0" stopOpacity="0"/>
                 </radialGradient>
 
-                {/* Clip for center avatar */}
-                <clipPath id="gp-centerclip">
-                  <circle cx={CX} cy={CY} r={CENTER_R - 2}/>
-                </clipPath>
-
-                {/* Glow filters */}
-                <filter id="gp-cglow" x="-80%" y="-80%" width="260%" height="260%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="b"/>
-                  <feComposite in="SourceGraphic" in2="b" operator="over"/>
-                </filter>
-                <filter id="gp-nglow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/>
-                  <feComposite in="SourceGraphic" in2="b" operator="over"/>
-                </filter>
-                <filter id="gp-nglow2" x="-40%" y="-40%" width="180%" height="180%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="b"/>
-                  <feComposite in="SourceGraphic" in2="b" operator="over"/>
-                </filter>
+                {/* Nebula */}
+                <radialGradient id="gp-nebula" cx="50%" cy="48%" r="50%">
+                  <stop offset="0%"   stopColor="#ef4444" stopOpacity="0.10"/>
+                  <stop offset="40%"  stopColor="#7c3aed" stopOpacity="0.04"/>
+                  <stop offset="100%" stopColor="#000000" stopOpacity="0"/>
+                </radialGradient>
 
                 {/* Vignette */}
                 <radialGradient id="gp-vignette" cx="50%" cy="50%" r="50%">
@@ -493,25 +558,34 @@ export default function GraphPreview({
                   <stop offset="100%" stopColor="#07070f" stopOpacity="0.90"/>
                 </radialGradient>
 
-                {/* Nebula */}
-                <radialGradient id="gp-nebula" cx="50%" cy="48%" r="50%">
-                  <stop offset="0%"   stopColor="#ef4444" stopOpacity="0.12"/>
-                  <stop offset="40%"  stopColor="#7c3aed" stopOpacity="0.05"/>
-                  <stop offset="100%" stopColor="#000000" stopOpacity="0"/>
-                </radialGradient>
+                {/* Center avatar clip */}
+                <clipPath id="gp-centerclip">
+                  <circle cx={CX} cy={CY} r={CENTER_R - 2}/>
+                </clipPath>
 
-                {/* Line glow */}
+                {/* Sun glow */}
+                <filter id="gp-cglow" x="-80%" y="-80%" width="260%" height="260%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="b"/>
+                  <feComposite in="SourceGraphic" in2="b" operator="over"/>
+                </filter>
+
+                {/* Node glows */}
+                <filter id="gp-nglow" x="-80%" y="-80%" width="260%" height="260%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b"/>
+                  <feComposite in="SourceGraphic" in2="b" operator="over"/>
+                </filter>
+                <filter id="gp-nglow2" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="b"/>
+                  <feComposite in="SourceGraphic" in2="b" operator="over"/>
+                </filter>
+
+                {/* Connection line glow */}
                 <filter id="gp-lineglow" x="-200%" y="-200%" width="500%" height="500%">
                   <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b"/>
                   <feComposite in="SourceGraphic" in2="b" operator="over"/>
                 </filter>
 
-                {/* Sharp line glow */}
-                <filter id="gp-lineglow2" x="-100%" y="-100%" width="300%" height="300%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="1.0"/>
-                </filter>
-
-                {/* Animated ring around avatar — rotating gradient + pulse */}
+                {/* Sun rotating ring */}
                 <linearGradient id="gp-ring-grad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%"   stopColor="#ffcc44" stopOpacity="1"/>
                   <stop offset="35%"  stopColor="#ff8800" stopOpacity="1"/>
@@ -521,16 +595,34 @@ export default function GraphPreview({
                 <filter id="gp-ringblur" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="1.5"/>
                 </filter>
+
+                {/* Per-node gradient lines */}
+                {nodes.map((node, i) => {
+                  const { x, y } = positions[i]
+                  const col = KIND_COLOR[node.kind]
+                  return (
+                    <linearGradient
+                      key={i}
+                      id={`gp-lg${i}`}
+                      x1={CX} y1={CY} x2={x} y2={y}
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop offset="0%"   stopColor={CENTER_COLOR} stopOpacity="0"/>
+                      <stop offset="100%" stopColor={col}           stopOpacity="0.15"/>
+                    </linearGradient>
+                  )
+                })}
               </defs>
 
               {/* ── Galaxy atmosphere ── */}
-              <rect x="0" y="0" width={SVG_W} height={SVG_H} fill="url(#gp-gband)" filter="url(#gp-galblur)"/>
+              <rect x="0" y="0" width={SVG_W} height={SVG_H}
+                fill="url(#gp-gband)" filter="url(#gp-galblur)"/>
               <rect x="0" y={SVG_H * 0.25} width={SVG_W * 0.55} height={SVG_H * 0.75}
                 fill="url(#gp-gwarm)" filter="url(#gp-galblur)"/>
               <rect x={SVG_W * 0.45} y="0" width={SVG_W * 0.55} height={SVG_H * 0.75}
                 fill="url(#gp-gcool)" filter="url(#gp-galblur)"/>
 
-              {/* ── Background stars ── */}
+              {/* ── Background micro-stars ── */}
               {bgStars.map((s, i) => (
                 <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="white" opacity={s.op}/>
               ))}
@@ -539,44 +631,44 @@ export default function GraphPreview({
               <rect x={CX - 180} y={CY - 130} width="360" height="260"
                 fill="url(#gp-nebula)" filter="url(#gp-galblur)" opacity="0.9"/>
 
-              {/* ── Connection lines ── */}
+              {/* ── Connection lines (below nodes) ── */}
               {nodes.map((node, i) => {
                 const { x, y } = positions[i]
-                const d        = depth(i)
-                const isHov    = hovered === i || hovered === 'center'
+                const isHov = hovered === i || hovered === 'center'
                 return (
-                  <g key={i}>
+                  <g key={i} style={{ pointerEvents: 'none' }}>
                     {isHov && (
                       <line x1={CX} y1={CY} x2={x} y2={y}
-                        stroke="rgba(255,255,255,0.22)" strokeWidth="1.5"
-                        filter="url(#gp-lineglow)" style={{ pointerEvents: 'none' }}/>
+                        stroke={KIND_COLOR[node.kind]}
+                        strokeWidth="1.2"
+                        strokeOpacity="0.35"
+                        filter="url(#gp-lineglow)"/>
                     )}
                     <line x1={CX} y1={CY} x2={x} y2={y}
-                      stroke={isHov ? 'rgba(255,255,255,0.28)' : `rgba(255,255,255,${(0.05 * d).toFixed(2)})`}
-                      strokeWidth={isHov ? 1.0 : 0.5}
-                      style={{ transition: 'stroke 0.2s ease', pointerEvents: 'none' }}/>
+                      stroke={`url(#gp-lg${i})`}
+                      strokeWidth={isHov ? 0.8 : 0.5}
+                      style={{ transition: 'stroke-width 0.2s ease' }}/>
                   </g>
                 )
               })}
 
-              {/* ── Orbital nodes ── */}
+              {/* ── Scattered nodes ── */}
               {nodes.map((node, i) => {
-                const { x, y }  = positions[i]
-                const d         = depth(i)
-                const color     = '#ffffff'
-                const isHov     = hovered === i
-                const glowR     = nodeR(node.films, d)
-                const coreR     = isHov ? Math.max(2.8, glowR * 0.32) : 1.6 + d * 1.0
-                const floatAmp  = 3 + sr(i * 7 + 1) * 4
-                const floatDur  = `${3.5 + sr(i * 11 + 3) * 2.5}s`
-                const floatDel  = `${sr(i * 13 + 7) * 2}s`
+                const { x, y } = positions[i]
+                const col      = KIND_COLOR[node.kind]
+                const isHov    = hovered === i
+                const cr       = coreR(node.films, isHov)
+                const gr       = glowR(node.films)
+                const floatAmp = 2.5 + sr(i * 7 + 1) * 3.5
+                const floatDur = `${3.8 + sr(i * 11 + 3) * 2.8}s`
+                const floatDel = `${sr(i * 13 + 7) * 2}s`
 
                 return (
                   <g
                     key={i}
                     style={{
                       cursor: node.id ? 'pointer' : 'default',
-                      // @ts-ignore CSS custom property
+                      // @ts-ignore
                       '--gp-amp': `-${floatAmp}px`,
                       animation: `gp-float ${floatDur} ${floatDel} ease-in-out infinite`,
                     }}
@@ -585,52 +677,50 @@ export default function GraphPreview({
                     onClick={() => node.id !== null && router.push(`/actors/${toSlug(node.name)}`)}
                     onTouchStart={e => { e.stopPropagation(); setHovered(i) }}
                   >
-                    {/* Rest glow */}
-                    <circle cx={x} cy={y} r={coreR * 2.5} fill={color}
-                      opacity={isHov ? 0 : 0.18 * d} filter="url(#gp-nglow)"/>
+                    {/* Resting soft halo */}
+                    <circle cx={x} cy={y} r={cr * 2.8} fill={col}
+                      opacity={isHov ? 0 : 0.12} filter="url(#gp-nglow)"/>
 
-                    {/* Wide hover glow */}
-                    <circle cx={x} cy={y} r={glowR * 2.0} fill={color}
-                      opacity={isHov ? 0.28 : 0}
+                    {/* Hover bloom */}
+                    <circle cx={x} cy={y} r={gr * 1.8} fill={col}
+                      opacity={isHov ? 0.22 : 0}
                       filter="url(#gp-nglow)"
-                      style={{ transition: 'opacity 0.2s ease' }}/>
-
-                    {/* Inner hover ring */}
-                    <circle cx={x} cy={y} r={glowR} fill={color}
-                      opacity={isHov ? 0.55 : 0}
+                      style={{ transition: 'opacity 0.18s ease' }}/>
+                    <circle cx={x} cy={y} r={gr} fill={col}
+                      opacity={isHov ? 0.45 : 0}
                       filter="url(#gp-nglow2)"
-                      style={{ transition: 'opacity 0.2s ease' }}/>
+                      style={{ transition: 'opacity 0.18s ease' }}/>
 
-                    {/* Core */}
-                    <circle cx={x} cy={y} r={coreR} fill={isHov ? '#fff' : color}
-                      opacity={isHov ? 1 : 0.85 * d}
-                      style={{ transition: 'r 0.2s ease, fill 0.2s ease' }}/>
+                    {/* Core dot */}
+                    <circle cx={x} cy={y} r={cr} fill={isHov ? '#fff' : col}
+                      opacity={isHov ? 1 : 0.80}
+                      style={{ transition: 'r 0.18s ease, fill 0.18s ease' }}/>
 
-                    {/* Name label */}
+                    {/* Name */}
                     <text
-                      x={x} y={y - coreR - 6}
-                      textAnchor="middle" fontSize="9" fontWeight={isHov ? '600' : '400'}
-                      fill={isHov ? 'rgba(255,255,255,0.95)' : `rgba(255,255,255,${(0.30 + d * 0.25).toFixed(2)})`}
-                      style={{ userSelect: 'none', transition: 'fill 0.2s ease' }}
+                      x={x} y={y - cr - 5}
+                      textAnchor="middle" fontSize="8.5" fontWeight={isHov ? '600' : '400'}
+                      fill={isHov ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.32)'}
+                      style={{ userSelect: 'none', transition: 'fill 0.18s ease' }}
                     >
                       {node.name.split(' ')[0]}
                     </text>
 
-                    {/* Film count on hover */}
+                    {/* Hover detail */}
                     {isHov && (
-                      <text x={x} y={y + coreR + 14}
-                        textAnchor="middle" fontSize="7.5"
-                        fill="rgba(255,255,255,0.45)"
+                      <text x={x} y={y + cr + 13}
+                        textAnchor="middle" fontSize="7"
+                        fill={col} opacity="0.75"
                         style={{ userSelect: 'none' }}
                       >
-                        {node.films} {node.films === 1 ? 'film' : 'films'}
+                        {node.kind === 'director' ? 'Dir · ' : ''}{node.films} {node.films === 1 ? 'film' : 'films'}
                       </text>
                     )}
                   </g>
                 )
               })}
 
-              {/* ── Center star (actor as sun with fire ring) ── */}
+              {/* ── Center sun ── */}
               {(() => {
                 const avatarSlug  = center.name.toLowerCase().replace(/\s+/g, '')
                 const isHovCenter = hovered === 'center'
@@ -641,7 +731,7 @@ export default function GraphPreview({
                     onMouseLeave={() => setHovered(null)}
                     onClick={() => router.push(`/actors/${toSlug(center.name)}`)}
                   >
-                    {/* Subtle animated ring — rotating gradient + gentle pulse */}
+                    {/* Rotating fire ring */}
                     <g>
                       <animateTransform attributeName="transform" type="rotate"
                         from={`0 ${CX} ${CY}`} to={`360 ${CX} ${CY}`}
@@ -683,7 +773,7 @@ export default function GraphPreview({
                       </text>
                     )}
 
-                    {/* Name */}
+                    {/* Name label */}
                     <text x={CX} y={CY + CENTER_R + 17}
                       textAnchor="middle" fontSize="10" fontWeight="600"
                       fill={isHovCenter ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.68)'}
@@ -711,7 +801,7 @@ export default function GraphPreview({
           )}
 
           {center && nodes.length > 0 && (
-            <p className="text-center text-[10px] text-white/25 mt-3 tracking-wide select-none">
+            <p className="text-center text-[10px] text-white/20 mt-3 tracking-wide select-none">
               Tap stars to explore connections
             </p>
           )}
