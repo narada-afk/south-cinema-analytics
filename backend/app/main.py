@@ -45,6 +45,11 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         graph_service.build(db)
+    except Exception as e:
+        # DB may be empty or schema not yet applied (e.g. CI environment).
+        # Log and continue — the app will still serve /health; graph-dependent
+        # endpoints will return empty results until the graph is populated.
+        print(f"[startup] graph build skipped — DB may be empty or unavailable: {e}")
     finally:
         db.close()
     yield
