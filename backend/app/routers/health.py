@@ -1,7 +1,8 @@
 """
 routers/health.py
 =================
-GET /health — service liveness + live row counts.
+GET /health  — lightweight liveness probe (no DB query)
+GET /health/stats — live row counts (requires DB)
 """
 
 from fastapi import APIRouter, Depends
@@ -17,12 +18,24 @@ router = APIRouter(tags=["Health"])
 
 @router.get(
     "/health",
-    response_model=schemas.HealthOut,
-    summary="API health check",
+    summary="API liveness probe",
 )
-def health_check(db: Session = Depends(get_db)):
+def health_check():
     """
-    Returns the service status plus live row counts.
+    Lightweight liveness probe — returns immediately without touching the DB.
+    Used by CI and load-balancers to verify the process is alive.
+    """
+    return {"status": "ok"}
+
+
+@router.get(
+    "/health/stats",
+    response_model=schemas.HealthOut,
+    summary="API health check with DB row counts",
+)
+def health_stats(db: Session = Depends(get_db)):
+    """
+    Returns live row counts from the database.
 
     Example response:
     ```json
