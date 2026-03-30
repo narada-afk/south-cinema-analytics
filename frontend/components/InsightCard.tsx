@@ -11,7 +11,7 @@ export interface InsightCardData {
   stat: string | number
   subtext?: string
   actors?: Array<{ name: string; avatarSlug?: string }>
-  gradient: 'red' | 'purple' | 'orange' | 'blue' | 'green'
+  gradient: 'red' | 'purple' | 'orange' | 'blue' | 'green' | 'amber'
   href?: string
 }
 
@@ -21,6 +21,7 @@ const CARD_BG: Record<InsightCardData['gradient'], string> = {
   orange: '#130904',
   blue:   '#030f19',
   green:  '#031308',
+  amber:  '#130b02',
 }
 
 const ACCENT: Record<InsightCardData['gradient'], string> = {
@@ -29,6 +30,7 @@ const ACCENT: Record<InsightCardData['gradient'], string> = {
   orange: '#fb923c',
   blue:   '#60a5fa',
   green:  '#4ade80',
+  amber:  '#fbbf24',
 }
 
 const GLOW: Record<InsightCardData['gradient'], string> = {
@@ -37,6 +39,7 @@ const GLOW: Record<InsightCardData['gradient'], string> = {
   orange: 'rgba(249,115,22,0.18)',
   blue:   'rgba(59,130,246,0.18)',
   green:  'rgba(34,197,94,0.18)',
+  amber:  'rgba(251,191,36,0.18)',
 }
 
 export default function InsightCard({
