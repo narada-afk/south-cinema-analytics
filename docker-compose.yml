@@ -50,22 +50,24 @@ services:
       - ./backend:/app            # Mount local code so changes reflect without rebuild
 
   # -------------------------------------------------------------------------
-  # Next.js Frontend
+  # Next.js Frontend  (production build — pre-compiled, fast)
   # -------------------------------------------------------------------------
   frontend:
     build:
       context: ./frontend          # Build from the frontend/ folder
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000  # baked into JS bundle at build time
+        API_URL: http://backend:8000
     ports:
       - "3000:3000"                # Dashboard available at http://localhost:3000
     environment:
       API_URL: http://backend:8000               # Server-side (SSR/RSC) — Docker internal
       NEXT_PUBLIC_API_URL: http://localhost:8000 # Client-side (browser) — host-exposed
-      WATCHPACK_POLLING: "true"                  # Fix hot reload on macOS Docker volumes
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app            # Mount local code for hot reload
-      - /app/node_modules          # Keep node_modules inside container
+    # No source volume mount — production build is pre-compiled inside the image.
+    # To iterate on frontend code run:  cd frontend && npm run dev  (natively, port 3001)
+    # then rebuild the image when ready: docker compose up --build frontend
 
 # Named volume to persist Postgres data
 volumes:

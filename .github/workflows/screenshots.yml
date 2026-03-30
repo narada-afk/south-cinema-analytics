@@ -64,20 +64,8 @@ jobs:
       # ── 7c. Seed test data so actor/compare pages render (not 404) ──────────
       - name: Seed test actors
         run: |
-          # Create all tables via SQLAlchemy
-          docker compose exec -T backend python -c "
-          from app.database import engine
-          from app import models
-          models.Base.metadata.create_all(bind=engine)
-          print('Tables created')
-          "
-          # Insert 2 test actors (idempotent)
-          docker compose exec -T postgres psql -U sca -d sca -c "
-          INSERT INTO actors (name, industry, is_primary_actor, created_at)
-          VALUES ('Rajinikanth', 'Tamil',  true, NOW()),
-                 ('Kamal Haasan','Tamil',  true, NOW())
-          ON CONFLICT (name) DO NOTHING;
-          "
+          # Run the full seed: creates tables + inserts actors, movies, cast entries
+          docker compose exec -T backend python -m app.seed_data
 
       # ── 7b. Debug: dump backend logs (always, helps diagnose failures) ────────
       - name: Dump backend logs (debug)

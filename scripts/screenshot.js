@@ -22,18 +22,21 @@ const PAGES = [
     waitFor:  'main',
   },
   {
-    name:     'actor_rajinikanth',
-    path:     '/actors/rajinikanth',
+    // Allu Arjun — seeded by app.seed_data with ~9 movies
+    name:     'actor_alluarjun',
+    path:     '/actors/allu-arjun',
     waitFor:  'main',
   },
   {
-    name:     'actor_kamalhaasan',
-    path:     '/actors/kamal-haasan',
+    // Vijay — seeded by app.seed_data with ~10 movies
+    name:     'actor_vijay',
+    path:     '/actors/vijay',
     waitFor:  'main',
   },
   {
-    name:     'compare_rajinikanth_vs_kamalhaasan',
-    path:     '/compare/rajinikanth-vs-kamal-haasan',
+    // Compare: uses numeric IDs — always resolves correctly regardless of name slug format
+    name:     'compare_alluarjun_vs_vijay',
+    path:     '/compare/1-vs-2',
     waitFor:  'main',
   },
 ]
