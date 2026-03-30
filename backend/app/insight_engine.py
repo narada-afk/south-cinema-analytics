@@ -73,8 +73,8 @@ def _collaboration_shock(db: Session, limit: int = 50) -> list:
                 LEAST(c1.actor_id, c2.actor_id)    AS a1_id,
                 GREATEST(c1.actor_id, c2.actor_id) AS a2_id,
                 MAX(m.release_year)                AS last_year
-            FROM   cast c1
-            JOIN   cast c2 ON c2.movie_id = c1.movie_id
+            FROM   "cast" c1
+            JOIN   "cast" c2 ON c2.movie_id = c1.movie_id
                            AND c2.actor_id != c1.actor_id
             JOIN   movies m ON m.id = c1.movie_id
             WHERE  m.release_year IS NOT NULL
@@ -111,7 +111,7 @@ def _collaboration_shock(db: Session, limit: int = 50) -> list:
         results.append({
             "type":      "collab_shock",
             "category":  "collaboration",
-            "title":     f"{row.actor1_name} & {row.actor2_name}",
+            "headline":     f"{row.actor1_name} & {row.actor2_name}",
             "value":     row.films,
             "unit":      "films together",
             "actors":    [row.actor1_name, row.actor2_name],
@@ -162,7 +162,7 @@ def _hidden_dominance(db: Session, limit: int = 50) -> list:
         results.append({
             "type":      "hidden_dominance",
             "category":  "career",
-            "title":     row.name,
+            "headline":     row.name,
             "value":     row.film_count,
             "unit":      "films",
             "actors":    [row.name],
@@ -206,7 +206,7 @@ def _cross_industry_reach(db: Session, limit: int = 50) -> list:
         {
             "type":      "cross_industry",
             "category":  "industry",
-            "title":     row.name,
+            "headline":     row.name,
             "value":     row.ind_count,
             "unit":      "industries",
             "actors":    [row.name],
@@ -276,7 +276,7 @@ def _career_peak_window(db: Session, limit: int = 50) -> list:
         {
             "type":      "career_peak",
             "category":  "career",
-            "title":     row.name,
+            "headline":     row.name,
             "value":     f"{row.peak_start}–{row.peak_end}",
             "unit":      "peak years",
             "actors":    [row.name],
@@ -316,7 +316,7 @@ def _network_power(db: Session, limit: int = 50) -> list:
         {
             "type":      "network_power",
             "category":  "network",
-            "title":     row.name,
+            "headline":     row.name,
             "value":     row.costar_count,
             "unit":      "connections",
             "actors":    [row.name],
@@ -359,7 +359,7 @@ def _director_loyalty(db: Session, limit: int = 50) -> list:
         {
             "type":      "director_loyalty",
             "category":  "collaboration",
-            "title":     row.actor_name,
+            "headline":     row.actor_name,
             "value":     row.dir_films,
             "unit":      f"films with {row.director_name}",
             "actors":    [row.actor_name],
@@ -456,7 +456,7 @@ def _pick_diverse(candidates: list) -> list:
         print(
             f"[INSIGHT] type={ins['type']:<20} "
             f"score={s:5.1f}  confidence={ins['confidence']:.3f}  "
-            f"title={ins['title']!r}"
+            f"headline={ins['headline']!r}"
         )
 
     # Group by type, sorted best-first within each bucket
@@ -504,8 +504,9 @@ def compute_wow_insights(db: Session) -> list:
             results = pattern(db)          # each pattern now returns a list
             if results:
                 candidates.extend(results) # flatten into one pool
-        except Exception:
-            pass   # one broken pattern must not crash the whole page
+        except Exception as e:
+            db.rollback()  # clear aborted transaction so next pattern can run
+            print(f"[INSIGHT] pattern {pattern.__name__} failed: {e}")
 
     # No cap — return every qualifying insight, interleaved by type.
     return _pick_diverse(candidates)

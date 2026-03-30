@@ -105,7 +105,7 @@ async function fetchPageData(industry: string) {
       return {
         emoji:    meta.emoji,
         label:    meta.label,
-        headline: insight.title,
+        headline: insight.headline,
         stat,
         subtext,
         actors:   insight.actors

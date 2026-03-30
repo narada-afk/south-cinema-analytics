@@ -81,7 +81,7 @@ export interface Insight {
   type: string
   /** Broad grouping for filtering/diversity: 'collaboration' | 'network' | 'career' | 'industry' */
   category?: string
-  title: string
+  headline: string
   /** Numeric count for most types; string range (e.g. "2005–2010") for career_peak. */
   value: number | string
   unit: string
