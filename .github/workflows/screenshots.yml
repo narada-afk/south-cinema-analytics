@@ -25,15 +25,27 @@ jobs:
         with:
           node-version: 20
 
-      # ── 3. Install root deps (playwright + wait-on) ──────────────────────────
+      # ── 3. Docker layer cache ─────────────────────────────────────────────────
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('backend/Dockerfile', 'backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── 4. Install root deps (playwright + wait-on) ──────────────────────────
       - name: Install script deps
         run: npm install
 
-      # ── 4. Install Playwright browser ─────────────────────────────────────────
+      # ── 5. Install Playwright browser ─────────────────────────────────────────
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      # ── 5. Install frontend deps + build ─────────────────────────────────────
+      # ── 6. Install frontend deps + build ─────────────────────────────────────
       - name: Install frontend deps
         working-directory: frontend
         run: npm ci
@@ -45,14 +57,14 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:8000
         run: npm run build
 
-      # ── 6. Start backend + DB ────────────────────────────────────────────────
+      # ── 7. Start backend + DB ────────────────────────────────────────────────
       - name: Start backend services
-        run: docker compose up -d postgres backend
+        run: docker compose up -d --build postgres backend
 
       - name: Wait for backend
-        run: npx wait-on http://localhost:8000/health --timeout 120000
+        run: npx wait-on http://localhost:8000/health --timeout 300000 --interval 3000
 
-      # ── 7. Start Next.js ─────────────────────────────────────────────────────
+      # ── 8. Start Next.js ─────────────────────────────────────────────────────
       - name: Start Next.js
         working-directory: frontend
         env:
@@ -61,15 +73,15 @@ jobs:
         run: npm run start &
 
       - name: Wait for Next.js
-        run: npx wait-on http://localhost:3000 --timeout 30000
+        run: npx wait-on http://localhost:3000 --timeout 60000
 
-      # ── 8. Take screenshots ──────────────────────────────────────────────────
+      # ── 9. Take screenshots ──────────────────────────────────────────────────
       - name: Run screenshot script
         env:
           SCREENSHOT_URL: http://localhost:3000
         run: node scripts/screenshot.js
 
-      # ── 9. Commit results ─────────────────────────────────────────────────────
+      # ── 10. Commit results ─────────────────────────────────────────────────────
       - name: Commit screenshots
         run: |
           git config user.name "github-actions"
