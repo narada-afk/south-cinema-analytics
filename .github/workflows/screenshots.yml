@@ -59,7 +59,7 @@ jobs:
         run: docker compose up -d --build postgres backend
 
       - name: Wait for backend
-        run: npx wait-on http://localhost:8000/health --timeout 120000 --interval 3000
+        run: npx wait-on http-get://localhost:8000/health --timeout 120000 --interval 3000
 
       # ── 7b. Debug: dump backend logs (always, helps diagnose failures) ────────
       - name: Dump backend logs (debug)
@@ -79,7 +79,7 @@ jobs:
         run: npm run start &
 
       - name: Wait for Next.js
-        run: npx wait-on http://localhost:3000 --timeout 60000
+        run: npx wait-on http-get://localhost:3000 --timeout 60000
 
       # ── 9. Take screenshots ──────────────────────────────────────────────────
       - name: Run screenshot script
