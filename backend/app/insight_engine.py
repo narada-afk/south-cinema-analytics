@@ -48,7 +48,7 @@ _cache_expiry: float = 0.0
 
 # ── Pattern 1: Collaboration Shock ────────────────────────────────────────────
 
-def _collaboration_shock(db: Session, limit: int = 5) -> list:
+def _collaboration_shock(db: Session, limit: int = 50) -> list:
     """
     Legendary duos that worked together many times but haven't shared
     the screen in 8+ years.  Returns up to `limit` pairs.
@@ -126,7 +126,7 @@ def _collaboration_shock(db: Session, limit: int = 5) -> list:
 
 # ── Pattern 2: Hidden Dominance ───────────────────────────────────────────────
 
-def _hidden_dominance(db: Session, limit: int = 5) -> list:
+def _hidden_dominance(db: Session, limit: int = 50) -> list:
     """
     Supporting actors whose total film count rivals most lead actors.
     Returns up to `limit` actors.
@@ -177,7 +177,7 @@ def _hidden_dominance(db: Session, limit: int = 5) -> list:
 
 # ── Pattern 3: Cross-Industry Reach ──────────────────────────────────────────
 
-def _cross_industry_reach(db: Session, limit: int = 5) -> list:
+def _cross_industry_reach(db: Session, limit: int = 50) -> list:
     """
     Primary actors who crossed language barriers to work in 3+ industries.
     Returns up to `limit` actors.
@@ -222,7 +222,7 @@ def _cross_industry_reach(db: Session, limit: int = 5) -> list:
 
 # ── Pattern 4: Career Peak Window ────────────────────────────────────────────
 
-def _career_peak_window(db: Session, limit: int = 5) -> list:
+def _career_peak_window(db: Session, limit: int = 50) -> list:
     """
     The densest 5-year career windows — one per actor (their golden era).
     Returns up to `limit` actors.
@@ -292,7 +292,7 @@ def _career_peak_window(db: Session, limit: int = 5) -> list:
 
 # ── Pattern 5: Network Power ──────────────────────────────────────────────────
 
-def _network_power(db: Session, limit: int = 5) -> list:
+def _network_power(db: Session, limit: int = 50) -> list:
     """
     Actors connected to the most unique co-stars across all industries.
     Returns up to `limit` actors.
@@ -332,7 +332,7 @@ def _network_power(db: Session, limit: int = 5) -> list:
 
 # ── Pattern 6: Director Loyalty ───────────────────────────────────────────────
 
-def _director_loyalty(db: Session, limit: int = 5) -> list:
+def _director_loyalty(db: Session, limit: int = 50) -> list:
     """
     Actors who spent ≥30% of their career with a single director.
     Returns up to `limit` actor-director pairs.
@@ -434,38 +434,44 @@ def _score(insight: dict) -> float:
 
 # ── Diversity picker ──────────────────────────────────────────────────────────
 
-def _pick_diverse(candidates: list, n: int = 30, max_per_type: int = 5) -> list:
+def _pick_diverse(candidates: list) -> list:
     """
-    Return up to n insights, allowing at most max_per_type per pattern type,
-    ranked by score.  Attaches 'confidence' (0–1) to each candidate.
+    Return ALL qualifying insights in a round-robin interleaved sequence so
+    the carousel flows naturally — no artificial caps.
 
-    Default n=30 (5 types × 6 patterns) gives a carousel long enough that
-    the infinite-loop repeat is barely noticeable.
+    Algorithm:
+      1. Score every candidate and sort each type's bucket highest → lowest.
+      2. Round-robin across type buckets: take the best remaining insight from
+         each type in turn, cycling until all buckets are exhausted.
+
+    This guarantees the carousel never shows the same type twice in a row,
+    and each insight appears exactly once regardless of how many the DB has.
     """
     print(f"[INSIGHT] {len(candidates)} candidates generated")
 
-    # Score every candidate, attach confidence, log
-    scored: list = []
+    # Score and attach confidence
     for ins in candidates:
         s = _score(ins)
         ins["confidence"] = round(min(1.0, s / 100), 3)
-        scored.append((s, ins))
         print(
             f"[INSIGHT] type={ins['type']:<20} "
             f"score={s:5.1f}  confidence={ins['confidence']:.3f}  "
             f"title={ins['title']!r}"
         )
 
-    # Pick top-N with per-type cap for variety
-    type_counts: dict = {}
+    # Group by type, sorted best-first within each bucket
+    buckets: dict = {}
+    for ins in sorted(candidates, key=_score, reverse=True):
+        buckets.setdefault(ins["type"], []).append(ins)
+
+    # Round-robin interleave across buckets
+    # Order buckets by their top score so the strongest type leads
+    ordered_types = sorted(buckets, key=lambda t: _score(buckets[t][0]), reverse=True)
     result: list = []
-    for _, insight in sorted(scored, key=lambda x: x[0], reverse=True):
-        t = insight["type"]
-        if type_counts.get(t, 0) < max_per_type:
-            type_counts[t] = type_counts.get(t, 0) + 1
-            result.append(insight)
-        if len(result) >= n:
-            break
+    while any(buckets[t] for t in ordered_types):
+        for t in ordered_types:
+            if buckets[t]:
+                result.append(buckets[t].pop(0))
 
     print(f"[INSIGHT] selected {len(result)}: {[i['type'] for i in result]}")
     return result
@@ -501,9 +507,8 @@ def compute_wow_insights(db: Session) -> list:
         except Exception:
             pass   # one broken pattern must not crash the whole page
 
-    # Up to 30 cards (5 per type × 6 types) — long enough that the carousel
-    # triple-loop repeat happens after 90 scroll positions.
-    return _pick_diverse(candidates, n=30, max_per_type=5)
+    # No cap — return every qualifying insight, interleaved by type.
+    return _pick_diverse(candidates)
 
 
 # ── Public entry point (thread-safe TTL cache) ────────────────────────────────
