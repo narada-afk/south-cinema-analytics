@@ -26,6 +26,7 @@ Usage
 
 from __future__ import annotations
 
+import logging
 import time
 from collections import defaultdict, deque
 from typing import Any, Optional
@@ -34,6 +35,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 # ── Simple in-memory TTL cache ────────────────────────────────────────────────
@@ -156,10 +159,7 @@ class GraphService:
         nodes   = len(self._full_graph)
         edges   = sum(len(v) for v in self._full_graph.values()) // 2
         primary_n = len(self._primary_graph)
-        print(
-            f"[GraphService] Built: {nodes} actors, {edges} edges "
-            f"({primary_n} primary actors in centrality graph)"
-        )
+        logger.info("graph built: %d actors, %d edges (%d primary)", nodes, edges, primary_n)
 
     def rebuild(self, db: Session) -> None:
         """
@@ -167,8 +167,22 @@ class GraphService:
         Call after running `python -m data_pipeline.build_analytics_tables`
         to reflect newly ingested data.
         """
-        print("[GraphService] Rebuilding graph...")
+        logger.info("rebuilding graph...")
         self.build(db)
+
+    # ── Introspection ─────────────────────────────────────────────────────────
+
+    @property
+    def is_ready(self) -> bool:
+        return self._ready
+
+    @property
+    def node_count(self) -> int:
+        return len(self._full_graph)
+
+    @property
+    def edge_count(self) -> int:
+        return sum(len(v) for v in self._full_graph.values()) // 2
 
     # ── BFS: actor connection finder ──────────────────────────────────────────
 

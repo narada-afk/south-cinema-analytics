@@ -18,6 +18,8 @@ COPY . .
 # Expose port 8000 so Docker Compose can route traffic to it
 EXPOSE 8000
 
-# Start the FastAPI server using uvicorn
-# --host 0.0.0.0 makes it accessible from outside the container
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start with gunicorn + uvicorn workers (production).
+# For local dev with hot reload, docker-compose.dev.yml overrides this CMD with:
+#   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "app.main:app", \
+     "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "60"]

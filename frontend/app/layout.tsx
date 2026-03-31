@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import './globals.css'
 import StarBackground from '@/components/StarBackground'
+import PostHogProvider from '@/components/PostHogProvider'
 
 export const metadata: Metadata = {
   title: 'South Cinema Analytics',
@@ -17,6 +19,10 @@ export default function RootLayout({
       <body className="bg-[#0a0a0f] text-white min-h-screen antialiased">
         {/* ── Global star background — fixed, z:0, behind content ── */}
         <StarBackground />
+
+        {/* ── PostHog pageview tracking (useSearchParams needs Suspense) ── */}
+        <Suspense fallback={null}>
+          <PostHogProvider>
 
         {/* ── All page content sits above the canvas (z:1) ── */}
         <div className="relative" style={{ zIndex: 1 }}>
@@ -75,6 +81,9 @@ export default function RootLayout({
           </div>
         </footer>
         </div>{/* end z:1 content wrapper */}
+
+          </PostHogProvider>
+        </Suspense>
 
       </body>
     </html>

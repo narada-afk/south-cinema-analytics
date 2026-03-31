@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import ActorAvatar from '@/components/ActorAvatar'
+import { capture } from '@/lib/posthog'
 
 interface SearchResult {
   id: number
@@ -58,14 +59,15 @@ export default function SearchBar() {
 
   const showDropdown = focused && results.length > 0
 
-  function navigate(name: string) {
+  function navigate(name: string, source: 'suggestion' | 'submit') {
+    void capture('search_performed', { query: name, source })
     setFocused(false); setQuery(''); setResults([])
     router.push(`/actors/${toSlug(name)}`)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (activeIdx >= 0 && results[activeIdx]) { navigate(results[activeIdx].name); return }
+    if (activeIdx >= 0 && results[activeIdx]) { navigate(results[activeIdx].name, 'submit'); return }
     const q = query.trim()
     if (!q) return
     setLoading(true)
@@ -73,7 +75,7 @@ export default function SearchBar() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
       const res    = await fetch(`${apiUrl}/actors/search?q=${encodeURIComponent(q)}`)
       const data: SearchResult[] = await res.json()
-      if (data.length > 0) router.push(`/actors/${toSlug(data[0].name)}`)
+      if (data.length > 0) navigate(data[0].name, 'submit')
     } catch {}
     finally { setLoading(false) }
   }
@@ -132,7 +134,7 @@ export default function SearchBar() {
           {results.map((item, idx) => (
             <button
               key={item.id}
-              onMouseDown={() => navigate(item.name)}
+              onMouseDown={() => navigate(item.name, 'suggestion')}
               onMouseEnter={() => setActiveIdx(idx)}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors duration-100"
               style={{ background: idx === activeIdx ? 'rgba(255,255,255,0.06)' : 'transparent' }}

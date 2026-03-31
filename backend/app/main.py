@@ -20,15 +20,24 @@ Run with:
   uvicorn app.main:app --reload
 """
 
+import logging
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 from .core.config import settings
+from .core.limiter import limiter
+from .core.logging import configure_logging
 from .database import SessionLocal
 from .services.graph_service import graph_service
-from .routers import actors, analytics, stats, health, data_health
+from .routers import actors, analytics, stats, health, data_health, admin
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
@@ -49,7 +58,7 @@ async def lifespan(app: FastAPI):
         # DB may be empty or schema not yet applied (e.g. CI environment).
         # Log and continue — the app will still serve /health; graph-dependent
         # endpoints will return empty results until the graph is populated.
-        print(f"[startup] graph build skipped — DB may be empty or unavailable: {e}")
+        logger.warning("graph build skipped — DB may be empty or unavailable: %s", e)
     finally:
         db.close()
     yield
@@ -67,6 +76,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"Rate limit exceeded. {exc.detail}"},
+    )
+
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
@@ -78,6 +96,19 @@ app.add_middleware(
 )
 
 
+# ── Request logging ───────────────────────────────────────────────────────────
+
+_req_logger = logging.getLogger("api.request")
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.monotonic()
+    response = await call_next(request)
+    ms = (time.monotonic() - start) * 1000
+    _req_logger.info("%s %s %d %.0fms", request.method, request.url.path, response.status_code, ms)
+    return response
+
+
 # ── Routers ───────────────────────────────────────────────────────────────────
 
 app.include_router(health.router)
@@ -85,3 +116,4 @@ app.include_router(actors.router)
 app.include_router(analytics.router)
 app.include_router(stats.router)
 app.include_router(data_health.router)
+app.include_router(admin.router)

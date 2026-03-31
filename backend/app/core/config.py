@@ -32,6 +32,16 @@ class Settings:
         "CORS_ORIGINS", "http://localhost:3000,http://localhost:3001"
     ).split(",")
 
+    # ── Redis cache ────────────────────────────────────────────────────────────
+    # Optional — leave unset to disable Redis caching (app falls back gracefully).
+    REDIS_URL: str | None = os.getenv("REDIS_URL")          # e.g. redis://redis:6379/0
+    CACHE_TTL: int = int(os.getenv("CACHE_TTL", "300"))     # seconds (default 5 min)
+
+    # ── Admin ──────────────────────────────────────────────────────────────────
+    # Required to call POST /admin/rebuild-graph.
+    # Set via ADMIN_API_KEY env var — no default, unset means endpoint is locked.
+    ADMIN_API_KEY: str | None = os.getenv("ADMIN_API_KEY")
+
     # ── Graph cache (in-memory) ────────────────────────────────────────────────
     # TTL in seconds for BFS result cache entries.
     # The adjacency list itself is permanent (built once at startup).

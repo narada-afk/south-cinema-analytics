@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import TrackEvent from '@/components/TrackEvent'
 import Header from '@/components/Header'
 import ActorHero from '@/components/ActorHero'
 import FilmographyPreview from '@/components/FilmographyPreview'
@@ -99,6 +100,7 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
+      <TrackEvent event="actor_viewed" props={{ actor_id: actor.id, actor_name: actor.name, industry: actor.industry }} />
       <Header />
 
       <main className="max-w-[1200px] mx-auto px-6 pb-24 flex flex-col gap-14">

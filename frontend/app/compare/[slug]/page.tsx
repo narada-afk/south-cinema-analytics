@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import TrackEvent from '@/components/TrackEvent'
 import Header from '@/components/Header'
 import ActorAvatar from '@/components/ActorAvatar'
 import MissingData from '@/components/MissingData'
@@ -675,6 +676,7 @@ export default async function ComparePage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
+      <TrackEvent event="compare_used" props={{ actor1: data1.profile.name, actor2: data2.profile.name }} />
       <Header />
 
       <main className="max-w-[1000px] mx-auto px-4 sm:px-6 pb-28 flex flex-col gap-10">

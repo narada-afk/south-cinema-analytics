@@ -24,6 +24,7 @@ v3 additions (backward-compatible):
   • category field — "collaboration" | "network" | "career" | "industry"
 """
 
+import logging
 import math
 import re
 import time
@@ -32,6 +33,8 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
 
 CURRENT_YEAR = 2026
 
@@ -447,17 +450,14 @@ def _pick_diverse(candidates: list) -> list:
     This guarantees the carousel never shows the same type twice in a row,
     and each insight appears exactly once regardless of how many the DB has.
     """
-    print(f"[INSIGHT] {len(candidates)} candidates generated")
+    logger.info("insight candidates generated: %d", len(candidates))
 
     # Score and attach confidence
     for ins in candidates:
         s = _score(ins)
         ins["confidence"] = round(min(1.0, s / 100), 3)
-        print(
-            f"[INSIGHT] type={ins['type']:<20} "
-            f"score={s:5.1f}  confidence={ins['confidence']:.3f}  "
-            f"headline={ins['headline']!r}"
-        )
+        logger.debug("insight type=%-20s score=%5.1f confidence=%.3f headline=%r",
+                     ins["type"], s, ins["confidence"], ins["headline"])
 
     # Group by type, sorted best-first within each bucket
     buckets: dict = {}
@@ -473,7 +473,7 @@ def _pick_diverse(candidates: list) -> list:
             if buckets[t]:
                 result.append(buckets[t].pop(0))
 
-    print(f"[INSIGHT] selected {len(result)}: {[i['type'] for i in result]}")
+    logger.info("insights selected: %d types=%s", len(result), [i["type"] for i in result])
     return result
 
 
@@ -506,7 +506,7 @@ def compute_wow_insights(db: Session) -> list:
                 candidates.extend(results) # flatten into one pool
         except Exception as e:
             db.rollback()  # clear aborted transaction so next pattern can run
-            print(f"[INSIGHT] pattern {pattern.__name__} failed: {e}")
+            logger.warning("insight pattern %s failed: %s", pattern.__name__, e)
 
     # No cap — return every qualifying insight, interleaved by type.
     return _pick_diverse(candidates)

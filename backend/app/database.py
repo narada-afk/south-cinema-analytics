@@ -7,12 +7,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Read the database URL from environment variable.
-# Default falls back to a local value for easier development.
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://sca:sca@postgres:5432/sca"
-)
+# DATABASE_URL must be set in the environment — no hardcoded fallback.
+# Locally: copy .env.example to .env and fill in values.
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 # The engine is the core connection to the database.
 engine = create_engine(DATABASE_URL)
