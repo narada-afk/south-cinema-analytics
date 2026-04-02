@@ -87,10 +87,11 @@ def _collaboration_shock(db: Session, limit: int = 50) -> list:
             GROUP  BY a1_id, a2_id
         )
         SELECT
-            a1.id   AS actor1_id,
-            a1.name AS actor1_name,
-            a2.id   AS actor2_id,
-            a2.name AS actor2_name,
+            a1.id       AS actor1_id,
+            a1.name     AS actor1_name,
+            a2.id       AS actor2_id,
+            a2.name     AS actor2_name,
+            a1.industry AS industry,
             ac.collaboration_count AS films,
             bl.last_year
         FROM   actor_collaborations ac
@@ -111,6 +112,7 @@ def _collaboration_shock(db: Session, limit: int = 50) -> list:
         results.append({
             "type":      "collab_shock",
             "category":  "collaboration",
+            "industry":  getattr(row, "industry", None),
             "headline":     f"{row.actor1_name} & {row.actor2_name}",
             "value":     row.films,
             "unit":      "films together",
@@ -135,12 +137,13 @@ def _hidden_dominance(db: Session, limit: int = 50) -> list:
         SELECT
             a.id,
             a.name,
+            a.industry,
             COUNT(am.movie_id) AS film_count
         FROM   actors a
         JOIN   actor_movies am ON am.actor_id = a.id
         WHERE  am.role_type = 'supporting'
           AND  a.is_primary_actor = FALSE
-        GROUP  BY a.id, a.name
+        GROUP  BY a.id, a.name, a.industry
         HAVING COUNT(am.movie_id) >= 20
         ORDER  BY film_count DESC
         LIMIT  :limit
@@ -162,6 +165,7 @@ def _hidden_dominance(db: Session, limit: int = 50) -> list:
         results.append({
             "type":      "hidden_dominance",
             "category":  "career",
+            "industry":  getattr(row, "industry", None),
             "headline":     row.name,
             "value":     row.film_count,
             "unit":      "films",
@@ -186,6 +190,7 @@ def _cross_industry_reach(db: Session, limit: int = 50) -> list:
         SELECT
             a.id,
             a.name,
+            a.industry,
             COUNT(DISTINCT LOWER(m.industry))                 AS ind_count,
             COUNT(DISTINCT am.movie_id)                       AS film_count,
             STRING_AGG(DISTINCT m.industry, ' · '
@@ -196,7 +201,7 @@ def _cross_industry_reach(db: Session, limit: int = 50) -> list:
         WHERE  m.industry IS NOT NULL
           AND  m.industry <> ''
           AND  a.is_primary_actor = TRUE
-        GROUP  BY a.id, a.name
+        GROUP  BY a.id, a.name, a.industry
         HAVING COUNT(DISTINCT LOWER(m.industry)) >= 3
         ORDER  BY ind_count DESC, film_count DESC
         LIMIT  :limit
@@ -206,6 +211,7 @@ def _cross_industry_reach(db: Session, limit: int = 50) -> list:
         {
             "type":      "cross_industry",
             "category":  "industry",
+            "industry":  getattr(row, "industry", None),
             "headline":     row.name,
             "value":     row.ind_count,
             "unit":      "industries",
@@ -258,7 +264,7 @@ def _career_peak_window(db: Session, limit: int = 50) -> list:
             ORDER  BY actor_id, win_films DESC
         )
         SELECT
-            a.id, a.name,
+            a.id, a.name, a.industry,
             bw.win_start                                AS peak_start,
             bw.win_start + 4                            AS peak_end,
             bw.win_films,
@@ -276,6 +282,7 @@ def _career_peak_window(db: Session, limit: int = 50) -> list:
         {
             "type":      "career_peak",
             "category":  "career",
+            "industry":  getattr(row, "industry", None),
             "headline":     row.name,
             "value":     f"{row.peak_start}–{row.peak_end}",
             "unit":      "peak years",
@@ -299,14 +306,14 @@ def _network_power(db: Session, limit: int = 50) -> list:
     """
     rows = db.execute(text("""
         SELECT
-            a.id, a.name,
+            a.id, a.name, a.industry,
             COUNT(DISTINCT ac.actor2_id) AS costar_count,
             ast.film_count
         FROM   actors a
         JOIN   actor_stats          ast ON ast.actor_id = a.id
         JOIN   actor_collaborations ac  ON ac.actor1_id = a.id
         WHERE  a.is_primary_actor = TRUE
-        GROUP  BY a.id, a.name, ast.film_count
+        GROUP  BY a.id, a.name, a.industry, ast.film_count
         HAVING COUNT(DISTINCT ac.actor2_id) >= 30
         ORDER  BY costar_count DESC
         LIMIT  :limit
@@ -316,6 +323,7 @@ def _network_power(db: Session, limit: int = 50) -> list:
         {
             "type":      "network_power",
             "category":  "network",
+            "industry":  getattr(row, "industry", None),
             "headline":     row.name,
             "value":     row.costar_count,
             "unit":      "connections",
@@ -340,6 +348,7 @@ def _director_loyalty(db: Session, limit: int = 50) -> list:
     rows = db.execute(text("""
         SELECT
             a.id                                                     AS actor_id,
+            a.industry,
             ads.actor_name,
             ads.director_name,
             ads.film_count                                           AS dir_films,
@@ -359,6 +368,7 @@ def _director_loyalty(db: Session, limit: int = 50) -> list:
         {
             "type":      "director_loyalty",
             "category":  "collaboration",
+            "industry":  getattr(row, "industry", None),
             "headline":     row.actor_name,
             "value":     row.dir_films,
             "unit":      f"films with {row.director_name}",
