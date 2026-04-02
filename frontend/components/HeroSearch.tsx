@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ActorAvatar from '@/components/ActorAvatar'
@@ -19,11 +19,11 @@ function toSlug(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-const HEADLINES = [
-  'How connected is South cinema?',
-  'Your stars are closer than you think 👀',
-  'Hidden connections in South cinema',
-  'Six degrees of South Indian cinema',
+const HEADLINES: ReactNode[] = [
+  <><span key="a1">How connected</span><br key="b1"/><span key="a2">is South cinema?</span></>,
+  <><span key="a1">Your stars are closer</span><br key="b1"/><span key="a2">than you think 👀</span></>,
+  <><span key="a1">Hidden connections</span><br key="b1"/><span key="a2">in South cinema</span></>,
+  <><span key="a1">Six degrees of</span><br key="b1"/><span key="a2">South Indian cinema</span></>,
 ]
 
 export default function HeroSearch({ trendingActors = [] }: { trendingActors?: TrendingChip[] }) {
@@ -125,21 +125,17 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
   return (
     <section className="flex flex-col items-center text-center pt-10 pb-4">
 
-      {/* Rotating headline — fixed-height container prevents layout shift */}
-      <div
-        className="flex items-center justify-center"
-        style={{ minHeight: '3.6rem' }}
+      {/* Rotating headline — always 2 lines via explicit <br/> */}
+      <h1
+        className="text-[1.9rem] sm:text-[2.6rem] font-black text-white leading-[1.25] tracking-[-0.02em] max-w-lg"
+        style={{
+          opacity:    fading ? 0 : 1,
+          transition: 'opacity 0.35s ease',
+          minHeight:  '2.6em',        /* exactly 2 lines — no layout shift */
+        }}
       >
-        <h1
-          className="text-[1.75rem] sm:text-[2.5rem] font-black text-white leading-[1.2] tracking-[-0.02em] max-w-2xl"
-          style={{
-            opacity:    fading ? 0 : 1,
-            transition: 'opacity 0.35s ease',
-          }}
-        >
-          {HEADLINES[headlineIdx]}
-        </h1>
-      </div>
+        {HEADLINES[headlineIdx]}
+      </h1>
 
       <p className="mt-3 text-sm text-white/40 max-w-sm leading-relaxed">
         8,000+ actors · 4 industries · infinite connections

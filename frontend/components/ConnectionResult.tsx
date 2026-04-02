@@ -529,32 +529,7 @@ export default function ConnectionResult({ result }: { result: ConnectionPath })
           ))}
         </div>
 
-        {/* ── Part 3: Payoff text — fades in below after animation completes ── */}
-        <div
-          aria-live="polite"
-          style={{
-            textAlign:  'center',
-            marginTop:  18,
-            opacity:    done ? 1 : 0,
-            transform:  done ? 'translateY(0)' : 'translateY(5px)',
-            transition: 'opacity 0.45s ease 0.15s, transform 0.45s ease 0.15s',
-          }}
-        >
-          <p style={{
-            fontSize:      11,
-            fontWeight:    600,
-            letterSpacing: '0.10em',
-            textTransform: 'uppercase',
-            color:         'rgba(255,255,255,0.22)',
-            margin:        0,
-          }}>
-            Only{' '}
-            <span style={{ color: 'rgba(255,255,255,0.60)', fontWeight: 700 }}>
-              {result.depth}
-            </span>
-            {' '}step{result.depth !== 1 ? 's' : ''} apart
-          </p>
-        </div>
+        {/* Part 3 placeholder — depth label shown at top; no duplicate here */}
 
         {/* ── Parts 6 + 7: Replay + Share — appear after animation completes ── */}
         <div

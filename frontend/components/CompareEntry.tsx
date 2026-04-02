@@ -195,7 +195,7 @@ export default function CompareEntry() {
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none' }}
               title={p.tag}
             >
-              <span className="text-white/30 mr-1">{p.tag}:</span>{p.label}
+              {p.label}
             </button>
           ))}
         </div>

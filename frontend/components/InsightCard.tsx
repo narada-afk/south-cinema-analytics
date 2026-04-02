@@ -107,27 +107,25 @@ export default function InsightCard({
         />
 
         {/* ── LEFT: text content ───────────────────────────── */}
-        <div className="relative z-10 flex flex-col justify-between p-5 flex-1 min-w-0 pr-2">
+        <div className="relative z-10 flex flex-col justify-between p-5 pr-3 flex-1 min-w-0" style={{ maxWidth: '62%' }}>
 
           {/* Label */}
           <span
             className="text-[10px] font-bold uppercase tracking-widest"
             style={{ color: accentColor }}
           >
-            {emoji}&nbsp;&nbsp;{label}
+            {label}
           </span>
 
           {/* Big stat — primary visual focus */}
-          <div className="text-[3.25rem] font-black text-white leading-none tracking-tight">
+          <div className="text-[3rem] font-black text-white leading-none tracking-tight">
             {stat}
           </div>
 
           {/* Supporting line — single line, low opacity */}
-          <div className="min-w-0">
-            <p className="text-[11px] text-white/40 leading-snug line-clamp-1">
-              {headline}
-            </p>
-          </div>
+          <p className="text-[11px] text-white/38 leading-snug line-clamp-1 min-w-0">
+            {headline}
+          </p>
         </div>
 
         {/* ── RIGHT: actor portrait(s) ─────────────────────── */}
