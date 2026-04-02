@@ -8,7 +8,7 @@ import InsightsCarousel from '@/components/InsightsCarousel'
 import { type InsightCardData } from '@/components/InsightCard'
 import ConnectionFinder from '@/components/stats/ConnectionFinder'
 import CompareEntry from '@/components/CompareEntry'
-import { getInsights, getActors, getActorCollaborators, getActor } from '@/lib/api'
+import { getInsights, getActors, getActorCollaborators, getActor, type Insight } from '@/lib/api'
 import type { TrendingChip } from '@/components/HeroSearch'
 import type { NetworkCenter, NetworkNode } from '@/components/GraphPreview'
 
@@ -22,12 +22,12 @@ const INSIGHT_META: Record<string, { emoji: string; label: string }> = {
   director:         { emoji: '🎬', label: 'Director Partnership' },
   supporting:       { emoji: '⭐', label: 'Character Icon' },
   // WOW insight types (insight_engine.py)
-  collab_shock:     { emoji: '⚡', label: 'Collaboration Shock' },
-  hidden_dominance: { emoji: '👑', label: 'Hidden Dominance' },
-  cross_industry:   { emoji: '🌏', label: 'Cross-Industry' },
-  career_peak:      { emoji: '📈', label: 'Career Peak' },
-  network_power:    { emoji: '🕸️', label: 'Network Power' },
-  director_loyalty: { emoji: '🤝', label: 'Director Loyalty' },
+  collab_shock:     { emoji: '⚡', label: 'Wait… how many films??' },
+  hidden_dominance: { emoji: '👀', label: 'Still everywhere' },
+  cross_industry:   { emoji: '🌏', label: 'No language barriers' },
+  career_peak:      { emoji: '🔥', label: 'Golden run' },
+  network_power:    { emoji: '🕸️', label: 'The ultimate connector' },
+  director_loyalty: { emoji: '🤝', label: 'One director. Always.' },
 }
 
 // ── Static fallbacks ──────────────────────────────────────────────────────────
@@ -65,13 +65,63 @@ const FALLBACK_INSIGHT_CARDS: InsightCardData[] = [
   },
 ]
 
+// ── Industry diversity selection ──────────────────────────────────────────────
+//
+// Ensures the carousel shows at most 1 card per industry before repeating.
+// Algorithm:
+//   1. Assign each insight to a Tamil/Telugu/Malayalam/Kannada bucket (or "other")
+//   2. Pick 1 from each available bucket (highest-confidence first within bucket)
+//   3. Append remainder in original (engine-scored) order, light shuffle applied
+
+function diversifyInsights(insights: Insight[]): Insight[] {
+  if (insights.length <= 4) return insights
+
+  const BUCKETS = ['Tamil', 'Telugu', 'Malayalam', 'Kannada'] as const
+  type BucketKey = typeof BUCKETS[number] | 'other'
+
+  const groups: Record<BucketKey, Insight[]> = {
+    Tamil: [], Telugu: [], Malayalam: [], Kannada: [], other: [],
+  }
+
+  for (const ins of insights) {
+    const ind = (ins.industry ?? '').toLowerCase()
+    const key = BUCKETS.find(b => ind.includes(b.toLowerCase()))
+    groups[key ?? 'other'].push(ins)
+  }
+
+  // Pick the top-confidence item from each industry bucket
+  const picked: Insight[] = []
+  const pickSet = new Set<Insight>()
+
+  for (const bucket of BUCKETS) {
+    if (groups[bucket].length > 0) {
+      const top = groups[bucket][0]   // engine already sorts by score desc
+      picked.push(top)
+      pickSet.add(top)
+    }
+  }
+
+  // Collect all remaining (unpicked) and apply a slight shuffle for variety
+  const rest = insights.filter(ins => !pickSet.has(ins))
+  for (let i = rest.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rest[i], rest[j]] = [rest[j], rest[i]]
+  }
+
+  return [...picked, ...rest]
+}
+
 // ── Data helpers ──────────────────────────────────────────────────────────────
 
 async function fetchPageData(industry: string) {
   try {
-    const insights = await getInsights(industry)
-    console.log('[homepage] API response insights:', insights.length, 'items')
-    if (!insights.length) return { insightCards: FALLBACK_INSIGHT_CARDS }
+    const rawInsights = await getInsights(industry)
+    console.log('[homepage] API response insights:', rawInsights.length, 'items')
+    if (!rawInsights.length) return { insightCards: FALLBACK_INSIGHT_CARDS }
+
+    // Reorder so each industry appears before repeats
+    const insights = diversifyInsights(rawInsights)
+    console.log('[homepage] after diversity reorder:', insights.map(i => `${i.type}(${i.industry ?? '?'})`).join(', '))
 
     // No cap — show everything the engine returns, interleaved by type
     const insightCards: InsightCardData[] = insights.map((insight, i) => {

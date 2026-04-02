@@ -93,6 +93,8 @@ export interface Insight {
   subtext?: string
   /** Normalised score 0–1. Higher = more surprising / impressive. */
   confidence?: number
+  /** Primary industry of the actor(s) — Tamil | Telugu | Malayalam | Kannada */
+  industry?: string
 }
 
 export interface SharedFilm {

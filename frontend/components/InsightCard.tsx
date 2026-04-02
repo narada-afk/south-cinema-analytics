@@ -43,6 +43,16 @@ const GLOW: Record<InsightCardData['gradient'], string> = {
   amber:  'rgba(251,191,36,0.18)',
 }
 
+// Stronger glow for hover state — same hue, higher opacity
+const HOVER_SHADOW: Record<InsightCardData['gradient'], string> = {
+  red:    '0 0 36px rgba(239,68,68,0.45), 0 8px 28px rgba(0,0,0,0.5)',
+  purple: '0 0 36px rgba(168,85,247,0.45), 0 8px 28px rgba(0,0,0,0.5)',
+  orange: '0 0 36px rgba(249,115,22,0.45), 0 8px 28px rgba(0,0,0,0.5)',
+  blue:   '0 0 36px rgba(59,130,246,0.45), 0 8px 28px rgba(0,0,0,0.5)',
+  green:  '0 0 36px rgba(34,197,94,0.45),  0 8px 28px rgba(0,0,0,0.5)',
+  amber:  '0 0 36px rgba(251,191,36,0.45), 0 8px 28px rgba(0,0,0,0.5)',
+}
+
 export default function InsightCard({
   emoji,
   label,
@@ -53,9 +63,10 @@ export default function InsightCard({
   gradient,
   href = '#',
 }: InsightCardData) {
-  const accentColor = ACCENT[gradient]
-  const bgColor     = CARD_BG[gradient]
-  const glowColor   = GLOW[gradient]
+  const accentColor  = ACCENT[gradient]
+  const bgColor      = CARD_BG[gradient]
+  const glowColor    = GLOW[gradient]
+  const hoverShadow  = HOVER_SHADOW[gradient]
 
   const [copied, setCopied] = useState(false)
 
@@ -79,6 +90,8 @@ export default function InsightCard({
                    hover:scale-[1.02] hover:brightness-110 transition-all duration-200
                    border border-white/5"
         style={{ background: bgColor }}
+        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = hoverShadow }}
+        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
       >
         {/* Share button — appears on hover */}
         <button
@@ -107,7 +120,7 @@ export default function InsightCard({
         />
 
         {/* ── LEFT: text content ───────────────────────────── */}
-        <div className="relative z-10 flex flex-col justify-between p-5 pr-3 flex-1 min-w-0" style={{ maxWidth: '62%' }}>
+        <div className="relative z-10 flex flex-col p-5 pr-3 flex-1 min-w-0" style={{ maxWidth: '62%' }}>
 
           {/* Label */}
           <span
@@ -118,12 +131,12 @@ export default function InsightCard({
           </span>
 
           {/* Big stat — primary visual focus */}
-          <div className="text-[3rem] font-black text-white leading-none tracking-tight">
+          <div className="text-[3.5rem] font-black text-white leading-none tracking-tight mt-2">
             {stat}
           </div>
 
-          {/* Supporting line — single line, low opacity */}
-          <p className="text-[11px] text-white/38 leading-snug line-clamp-1 min-w-0">
+          {/* Supporting line — single line, low opacity, pinned to bottom */}
+          <p className="text-[11px] text-white/28 leading-snug line-clamp-1 min-w-0 mt-auto pt-2">
             {headline}
           </p>
         </div>
