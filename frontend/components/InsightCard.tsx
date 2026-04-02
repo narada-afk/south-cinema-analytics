@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import ActorAvatar from './ActorAvatar'
@@ -56,17 +57,47 @@ export default function InsightCard({
   const bgColor     = CARD_BG[gradient]
   const glowColor   = GLOW[gradient]
 
+  const [copied, setCopied] = useState(false)
+
+  function handleShare(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    const url = typeof window !== 'undefined' ? `${window.location.origin}${href}` : href
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1600)
+    }).catch(() => {})
+  }
+
   const singleActor = actors.length === 1
   const multiActor  = actors.length >= 2
 
   return (
     <Link href={href} className="block h-full">
       <div
-        className="relative rounded-2xl overflow-hidden h-[168px] flex cursor-pointer
+        className="group relative rounded-2xl overflow-hidden h-[168px] flex cursor-pointer
                    hover:scale-[1.02] hover:brightness-110 transition-all duration-200
                    border border-white/5"
         style={{ background: bgColor }}
       >
+        {/* Share button — appears on hover */}
+        <button
+          onClick={handleShare}
+          className="absolute top-3 right-3 z-20 w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          style={{ background: 'rgba(255,255,255,0.10)' }}
+          title={copied ? 'Copied!' : 'Share'}
+          aria-label="Share"
+        >
+          {copied ? (
+            <span className="text-[10px] text-green-400 font-bold">✓</span>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          )}
+        </button>
         {/* Left radial glow — colour bleed from the accent */}
         <div
           className="absolute inset-0 pointer-events-none"

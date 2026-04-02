@@ -222,7 +222,7 @@ export default function ConnectionFinder({
               : 'bg-white/[0.08] text-white/50 border border-white/[0.12] cursor-default'}
           `}
         >
-          {loading ? 'Searching path…' : 'Find Connection'}
+          {loading ? 'Searching the network…' : 'Reveal Connection'}
         </button>
 
         {(!actor1 || !actor2) && defaultActors && defaultActors.length >= 2 && (

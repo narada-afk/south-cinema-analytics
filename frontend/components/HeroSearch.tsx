@@ -19,6 +19,13 @@ function toSlug(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
+const HEADLINES = [
+  'Discover hidden connections in South cinema',
+  'How far apart are your favourite stars? 🤔',
+  'Some duos are closer than you\'d expect 👀',
+  'Uncover the invisible network of South cinema',
+]
+
 export default function HeroSearch({ trendingActors = [] }: { trendingActors?: TrendingChip[] }) {
   const [query, setQuery]         = useState('')
   const [loading, setLoading]     = useState(false)
@@ -27,9 +34,26 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
   const [results, setResults]     = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [activeIdx, setActiveIdx] = useState(-1)
+
+  // Rotating headline
+  const [headlineIdx, setHeadlineIdx] = useState(0)
+  const [fading, setFading]           = useState(false)
+
   const inputRef = useRef<HTMLInputElement>(null)
   const dropRef  = useRef<HTMLDivElement>(null)
   const router   = useRouter()
+
+  // Rotate headline every 4s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFading(true)
+      setTimeout(() => {
+        setHeadlineIdx(i => (i + 1) % HEADLINES.length)
+        setFading(false)
+      }, 350)
+    }, 4000)
+    return () => clearInterval(timer)
+  }, [])
 
   // Live search — debounced 180 ms
   useEffect(() => {
@@ -100,11 +124,25 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
 
   return (
     <section className="flex flex-col items-center text-center pt-10 pb-4">
-      <h1 className="text-[2rem] sm:text-[2.75rem] font-black text-white leading-[1.15] tracking-[-0.02em] max-w-xl">
-        Explore South Indian<br />Cinema Connections
-      </h1>
-      <p className="mt-4 text-sm text-white/40 max-w-sm leading-relaxed">
-        Discover how actors are connected across Telugu, Tamil, Malayalam &amp; Kannada cinema.
+
+      {/* Rotating headline — fixed-height container prevents layout shift */}
+      <div
+        className="flex items-center justify-center"
+        style={{ minHeight: '5.5rem' }}
+      >
+        <h1
+          className="text-[2rem] sm:text-[2.75rem] font-black text-white leading-[1.15] tracking-[-0.02em] max-w-xl"
+          style={{
+            opacity:    fading ? 0 : 1,
+            transition: 'opacity 0.35s ease',
+          }}
+        >
+          {HEADLINES[headlineIdx]}
+        </h1>
+      </div>
+
+      <p className="mt-3 text-sm text-white/40 max-w-sm leading-relaxed">
+        8,000+ actors · 4 industries · infinite connections
       </p>
 
       {/* Search bar + dropdown wrapper */}
@@ -133,7 +171,7 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
             onChange={e => { setQuery(e.target.value); setNotFound(false); setActiveIdx(-1) }}
             onFocus={() => setFocused(true)}
             onKeyDown={handleKeyDown}
-            placeholder="Search an actor… (Try: Rajinikanth, Prabhas)"
+            placeholder="Search an actor… (e.g. Rajinikanth, Vijay)"
             disabled={loading}
             autoComplete="off"
             className="w-full pl-12 pr-5 py-4 text-sm bg-white/[0.07] border border-white/[0.12] text-white placeholder-white/25 focus:outline-none disabled:opacity-60 transition-all duration-200"
@@ -166,7 +204,7 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
             {isDefaultList && (
               <div className="px-5 pt-3 pb-1">
                 <span className="text-[10px] uppercase tracking-widest text-white/25 font-semibold">
-                  Trending actors
+                  🔥 Quick picks
                 </span>
               </div>
             )}
@@ -196,15 +234,20 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
         )}
       </div>
 
-      {/* Actor chips */}
+      {/* "Try this" chips */}
       {trendingActors.length > 0 && (
         <div className="flex flex-wrap gap-2 justify-center mt-5">
+          <div className="w-full flex justify-center mb-1">
+            <span className="text-[10px] uppercase tracking-widest text-white/25 font-semibold">
+              🔥 Try this:
+            </span>
+          </div>
           {trendingActors.map((actor) => (
             <Link
               key={actor.id}
               href={`/actors/${toSlug(actor.name)}`}
-              className="inline-flex items-center gap-2 pl-1.5 pr-4 py-1.5 rounded-full bg-white/[0.05] border border-white/[0.09] text-white/50 transition-all duration-200 hover:text-white/85 hover:bg-white/[0.10] hover:border-white/[0.20] hover:-translate-y-0.5"
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 4px 16px rgba(120,150,255,0.12)' }}
+              className="inline-flex items-center gap-2 pl-1.5 pr-4 py-1.5 rounded-full bg-white/[0.05] border border-white/[0.09] text-white/50 transition-all duration-200 hover:text-white/90 hover:bg-white/[0.10] hover:border-white/[0.25] hover:-translate-y-0.5 hover:scale-105"
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 4px 20px rgba(120,150,255,0.18)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.boxShadow = 'none' }}
             >
               <ActorAvatar name={actor.name} size={22} />

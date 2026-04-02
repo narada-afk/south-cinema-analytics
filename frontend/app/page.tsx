@@ -7,6 +7,7 @@ import GraphPreview from '@/components/GraphPreview'
 import InsightsCarousel from '@/components/InsightsCarousel'
 import { type InsightCardData } from '@/components/InsightCard'
 import ConnectionFinder from '@/components/stats/ConnectionFinder'
+import CompareEntry from '@/components/CompareEntry'
 import TrustBadgeFull from '@/components/TrustBadge'
 import { getInsights, getActors, getActorCollaborators, getActor } from '@/lib/api'
 import type { TrendingChip } from '@/components/HeroSearch'
@@ -222,29 +223,34 @@ export default async function HomePage({
         {/* ── 1. Hero ───────────────────────────────────────────────────────── */}
         <HeroSearch trendingActors={trendingChips} />
 
-        {/* ── 2. Connection Finder ─────────────────────────────────────────── */}
-        <section className="mt-16">
+        {/* ── 2. Insights (moved above fold — viral engine) ────────────────── */}
+        <section className="mt-14">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-white/40 mb-5">
-            🔗 Connection Finder
-          </h2>
-          <ConnectionFinder />
-        </section>
-
-        {/* ── 3. Graph Preview ─────────────────────────────────────────────── */}
-        <section className="mt-16">
-          <GraphPreview networkData={networkData} suggestions={trendingChips} />
-        </section>
-
-        {/* ── 4. Insights (auto-scroll carousel) ───────────────────────────── */}
-        <section className="mt-16">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-white/40 mb-5">
-            🔥 Cinema Insights
+            🔥 Did you know?
           </h2>
           <InsightsCarousel cards={insightCards} />
         </section>
 
-        {/* ── 5. Data Quality ──────────────────────────────────────────────── */}
-        <section className="mt-16 max-w-sm">
+        {/* ── 3. Compare Entry ─────────────────────────────────────────────── */}
+        <section className="mt-14">
+          <CompareEntry />
+        </section>
+
+        {/* ── 4. Connection Finder ─────────────────────────────────────────── */}
+        <section className="mt-14">
+          <ConnectionFinder />
+        </section>
+
+        {/* ── 5. Graph Preview ─────────────────────────────────────────────── */}
+        <section className="mt-14">
+          <p className="text-xs text-white/30 text-center mb-3">
+            Tap any node to explore connections
+          </p>
+          <GraphPreview networkData={networkData} suggestions={trendingChips} />
+        </section>
+
+        {/* ── 6. Data Quality ──────────────────────────────────────────────── */}
+        <section className="mt-14 max-w-sm">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-white/40 mb-5">
             🛡 Data Quality
           </h2>
