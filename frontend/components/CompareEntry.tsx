@@ -16,9 +16,10 @@ function toSlug(name: string) {
 }
 
 const POPULAR = [
-  { label: 'Vijay vs Ajith',    a: 'vijay',       b: 'ajith' },
-  { label: 'Rajini vs Kamal',   a: 'rajinikanth', b: 'kamal-haasan' },
-  { label: 'Dhanush vs Suriya', a: 'dhanush',     b: 'suriya' },
+  { label: 'Vijay vs Ajith',          a: 'vijay',       b: 'ajith',       tag: 'Tamil' },
+  { label: 'Prabhas vs Mahesh Babu',  a: 'prabhas',     b: 'mahesh-babu', tag: 'Telugu' },
+  { label: 'Mammootty vs Mohanlal',   a: 'mammootty',   b: 'mohanlal',    tag: 'Malayalam' },
+  { label: 'Rajini vs Chiranjeevi',   a: 'rajinikanth', b: 'chiranjeevi', tag: 'Cross' },
 ]
 
 // ── Minimal actor search input ────────────────────────────────────────────────
@@ -170,16 +171,20 @@ export default function CompareEntry() {
           className={[
             'px-8 py-3 rounded-full font-bold text-sm transition-all duration-200 flex-shrink-0',
             canCompare
-              ? 'bg-white text-[#0a0a0f] hover:scale-[1.03] hover:shadow-lg hover:shadow-white/20 active:scale-95'
+              ? 'bg-white text-[#0a0a0f] hover:scale-[1.03] active:scale-95'
               : 'bg-white/[0.08] text-white/40 border border-white/[0.12] cursor-default',
           ].join(' ')}
+          onMouseEnter={e => {
+            if (canCompare) (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 24px rgba(255,255,255,0.30), 0 4px 16px rgba(255,255,255,0.12)'
+          }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none' }}
         >
           Compare Now
         </button>
 
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] uppercase tracking-widest text-white/25 font-semibold whitespace-nowrap">
-            🔥 Popular:
+            🔥 Fan Battles:
           </span>
           {POPULAR.map(p => (
             <button
@@ -188,8 +193,9 @@ export default function CompareEntry() {
               className="px-3 py-1.5 rounded-full text-xs text-white/50 border border-white/[0.09] bg-white/[0.03] transition-all duration-200 hover:text-white/85 hover:bg-white/[0.10] hover:border-white/[0.22] hover:scale-105"
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 14px rgba(255,255,255,0.08)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none' }}
+              title={p.tag}
             >
-              {p.label}
+              <span className="text-white/30 mr-1">{p.tag}:</span>{p.label}
             </button>
           ))}
         </div>

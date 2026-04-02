@@ -441,9 +441,9 @@ export default function ConnectionResult({ result }: { result: ConnectionPath })
 
         {/* ── Depth label (top context) ── */}
         <p className="text-center text-white/40 text-xs uppercase tracking-widest mb-6">
-          Connected in{' '}
+          Only{' '}
           <span className="text-white font-bold">{result.depth}</span>{' '}
-          step{result.depth !== 1 ? 's' : ''}
+          step{result.depth !== 1 ? 's' : ''} apart 😳
         </p>
 
         {/* ── Part 1 + 5: Track — entry scale bump + edge fade mask ── */}
@@ -548,11 +548,11 @@ export default function ConnectionResult({ result }: { result: ConnectionPath })
             color:         'rgba(255,255,255,0.22)',
             margin:        0,
           }}>
-            Connected in{' '}
+            Only{' '}
             <span style={{ color: 'rgba(255,255,255,0.60)', fontWeight: 700 }}>
               {result.depth}
             </span>
-            {' '}step{result.depth !== 1 ? 's' : ''}
+            {' '}step{result.depth !== 1 ? 's' : ''} apart
           </p>
         </div>
 

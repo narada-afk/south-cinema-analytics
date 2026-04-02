@@ -20,10 +20,10 @@ function toSlug(name: string) {
 }
 
 const HEADLINES = [
-  'Discover hidden connections in South cinema',
-  'How far apart are your favourite stars? 🤔',
-  'Some duos are closer than you\'d expect 👀',
-  'Uncover the invisible network of South cinema',
+  'How connected is South cinema?',
+  'Your stars are closer than you think 👀',
+  'Hidden connections in South cinema',
+  'Six degrees of South Indian cinema',
 ]
 
 export default function HeroSearch({ trendingActors = [] }: { trendingActors?: TrendingChip[] }) {
@@ -128,10 +128,10 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
       {/* Rotating headline — fixed-height container prevents layout shift */}
       <div
         className="flex items-center justify-center"
-        style={{ minHeight: '5.5rem' }}
+        style={{ minHeight: '3.6rem' }}
       >
         <h1
-          className="text-[2rem] sm:text-[2.75rem] font-black text-white leading-[1.15] tracking-[-0.02em] max-w-xl"
+          className="text-[1.75rem] sm:text-[2.5rem] font-black text-white leading-[1.2] tracking-[-0.02em] max-w-2xl"
           style={{
             opacity:    fading ? 0 : 1,
             transition: 'opacity 0.35s ease',

@@ -118,20 +118,15 @@ export default function InsightCard({
           </span>
 
           {/* Big stat — primary visual focus */}
-          <div className="text-[2.75rem] font-black text-white leading-none tracking-tight">
+          <div className="text-[3.25rem] font-black text-white leading-none tracking-tight">
             {stat}
           </div>
 
-          {/* Headline + subtext */}
+          {/* Supporting line — single line, low opacity */}
           <div className="min-w-0">
-            <p className="text-[11px] text-white/60 leading-snug line-clamp-2">
+            <p className="text-[11px] text-white/40 leading-snug line-clamp-1">
               {headline}
             </p>
-            {subtext && (
-              <p className="text-[10px] mt-0.5" style={{ color: accentColor + '99' }}>
-                {subtext}
-              </p>
-            )}
           </div>
         </div>
 
