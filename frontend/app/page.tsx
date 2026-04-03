@@ -1,6 +1,8 @@
 // Force dynamic rendering so searchParams (?industry=…) is always fresh
 export const dynamic = 'force-dynamic'
 
+import fs from 'fs'
+import path from 'path'
 import Header from '@/components/Header'
 import HeroSearch from '@/components/HeroSearch'
 import GraphPreview from '@/components/GraphPreview'
@@ -153,6 +155,16 @@ function diversifyInsights(insights: Insight[]): Insight[] {
   return [...picked, ...rest]
 }
 
+// ── Avatar helpers ────────────────────────────────────────────────────────────
+
+const AVATARS_DIR = path.join(process.cwd(), 'public', 'avatars')
+
+/** Returns the slug if a matching PNG exists on disk, null otherwise */
+function avatarSlugIfExists(name: string): string | undefined {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return fs.existsSync(path.join(AVATARS_DIR, `${slug}.png`)) ? slug : undefined
+}
+
 // ── Data helpers ──────────────────────────────────────────────────────────────
 
 async function fetchPageData(industry: string) {
@@ -206,8 +218,8 @@ async function fetchPageData(industry: string) {
           .slice(0, insight.type === 'director' ? 1 : 2)
           .map((name) => ({
             name,
-            // slug must match /public/avatars/{slug}.png naming convention
-            avatarSlug: name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+            // only set avatarSlug when a matching PNG actually exists on disk
+            avatarSlug: avatarSlugIfExists(name),
           })),
         gradient: GRADIENTS[i % GRADIENTS.length],
         href,
