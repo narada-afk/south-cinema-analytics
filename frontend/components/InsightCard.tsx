@@ -192,45 +192,41 @@ export default function InsightCard({
               style={{ background: `linear-gradient(to right, ${bgColor} 0%, transparent 100%)` }}
             />
 
-            {/* Single actor — image bleeds from bottom-right, no circular crop */}
+            {/* Single actor — face visible, left edge fades into card */}
             {singleActor && actors[0].avatarSlug && (
-              <div className="relative" style={{ opacity: 0.82 }}>
-                <Image
-                  src={`/avatars/${actors[0].avatarSlug}.png`}
-                  alt={actors[0].name}
-                  width={190}
-                  height={190}
-                  className="object-cover object-top"
-                  style={{
-                    maskImage:       'radial-gradient(ellipse 95% 95% at 100% 100%, black 25%, transparent 72%)',
-                    WebkitMaskImage: 'radial-gradient(ellipse 95% 95% at 100% 100%, black 25%, transparent 72%)',
-                    filter:          'drop-shadow(0 8px 24px rgba(0,0,0,0.4))',
-                  }}
-                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                />
-              </div>
+              <Image
+                src={`/avatars/${actors[0].avatarSlug}.png`}
+                alt={actors[0].name}
+                width={190}
+                height={190}
+                className="object-cover object-top"
+                style={{
+                  maskImage:       'linear-gradient(to right, transparent 0%, black 35%)',
+                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 35%)',
+                }}
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+              />
             )}
 
-            {/* Two actors — overlapping, no circular crop */}
+            {/* Two actors — overlapping, left edge fades into card */}
             {multiActor && (
-              <div className="relative flex items-end" style={{ opacity: 0.82 }}>
+              <div className="relative flex items-center">
                 {actors.slice(0, 2).map((actor, i) => (
                   actor.avatarSlug ? (
                     <div
                       key={actor.name}
                       className="relative"
-                      style={{ marginLeft: i === 0 ? 0 : -30, zIndex: i === 0 ? 2 : 1 }}
+                      style={{ marginLeft: i === 0 ? 0 : -28, zIndex: i === 0 ? 2 : 1 }}
                     >
                       <Image
                         src={`/avatars/${actor.avatarSlug}.png`}
                         alt={actor.name}
-                        width={128}
-                        height={128}
+                        width={130}
+                        height={130}
                         className="object-cover object-top"
                         style={{
-                          maskImage:       'radial-gradient(ellipse 95% 95% at 100% 100%, black 20%, transparent 70%)',
-                          WebkitMaskImage: 'radial-gradient(ellipse 95% 95% at 100% 100%, black 20%, transparent 70%)',
-                          filter:          'drop-shadow(0 6px 16px rgba(0,0,0,0.45))',
+                          maskImage:       'linear-gradient(to right, transparent 0%, black 40%)',
+                          WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 40%)',
                         }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                       />
