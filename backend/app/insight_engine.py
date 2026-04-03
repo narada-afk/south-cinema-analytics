@@ -40,6 +40,21 @@ v5 additions:
                           collab_shock pairs where either actor has < 50 films
   • _score()            — now composes the three sub-scores + a type base weight
   • _MIN_SCORE raised to 55 — ensures only high-fame or high-wow cards survive
+
+v6 additions (extend & refine only — no existing logic removed):
+  • _fame_score()       — recognition boost: +10 if is_primary AND film_count >= 150
+                          (globally recognisable tier); fame cap raised 40 → 50
+  • _wow_score()        — shock override: +15 for value >= 500, +10 for value >= 400
+                          (stacked on top of existing magnitude tiers); cap raised 30 → 50
+  • _duo_wow_boost()    — new helper: +10 for collab_shock where both actors score
+                          is_primary=True AND film_count >= 150
+  • _headline_readiness() — new helper: -8 penalty when value/unit combo won't render
+                            cleanly as a large-number card
+  • _score()            — adds duo_wow and headline to composite; breakdown updated
+  • _hard_filter()      — Rule 6: non-hidden_dominance types require at least one
+                          primary actor; hidden_dominance now requires film_count >= 200
+  • _pick_diverse()     — 3-pass algorithm: (1) one-per-category, (2) fallback fill
+                          if score > 75, (3) supporting cap (max 1 hidden_dominance)
 """
 
 import logging
@@ -498,7 +513,7 @@ def _extract_number(value) -> Optional[float]:
 
 def _fame_score(insight: dict) -> float:
     """
-    0–40 points.  Rewards well-known, high-volume actors.
+    0–50 points.  Rewards well-known, high-volume actors.
 
     Uses tiered thresholds rather than log-scaling so that the difference
     between a 60-film actor and a 200-film actor is meaningfully large.
@@ -506,6 +521,9 @@ def _fame_score(insight: dict) -> float:
     film_count tiers   (max 25 pts):  200+ → 25, 100+ → 18, 50+ → 10, 20+ → 4
     costar_count tiers (max 15 pts):  200+ → 15, 100+ → 10, 50+ →  5
     is_primary bonus                : +8 per primary actor
+    recognition boost [v6]          : +10 if is_primary AND film_count >= 150
+                                      (globally recognisable tier; applied per actor,
+                                       averaged for duo insights so both must qualify)
 
     For multi-actor insights (collab_shock, director_loyalty) the score is
     the average across all actor entries — both actors must be famous for
@@ -542,8 +560,12 @@ def _fame_score(insight: dict) -> float:
         if s["is_primary"]:
             total += 8
 
+        # v6: Recognition boost — globally recognisable tier
+        if s["is_primary"] and fc >= 150:
+            total += 10
+
     avg = total / len(stats_list)
-    return min(40.0, avg)
+    return min(50.0, avg)
 
 
 def _relatability_score(insight: dict) -> float:
@@ -574,7 +596,7 @@ def _relatability_score(insight: dict) -> float:
 
 def _wow_score(insight: dict) -> float:
     """
-    0–30 points.  Rewards extreme magnitudes and genuinely surprising patterns.
+    0–50 points.  Rewards extreme magnitudes and genuinely surprising patterns.
 
     Magnitude tiers (the raw numeric value):
       500+  → 30    jaw-dropping (Brahmanandam 522 films, Kamal 557 connections)
@@ -589,6 +611,10 @@ def _wow_score(insight: dict) -> float:
       collab_shock:     gap >= 20 years → +10,  gap >= 10 → +5
       cross_industry:   value >= 5 industries → +8   (genuinely rare)
       hidden_dominance: value >= 400 films    → +10  (extraordinary output)
+
+    v6 shock overrides (stacked on top of all other bonuses — cap raised to 50):
+      value >= 500 → +15   extreme outlier; always deserves prominence
+      value >= 400 → +10   (only one tier fires per insight)
     """
     score = 0.0
     value = insight.get("value")
@@ -627,20 +653,67 @@ def _wow_score(insight: dict) -> float:
     if itype == "hidden_dominance" and isinstance(value, int) and value >= 400:
         score += 10
 
-    return min(30.0, score)
+    # v6: shock overrides — applied after pattern bonuses, before cap
+    if numeric is not None:
+        if numeric >= 500:
+            score += 15
+        elif numeric >= 400:
+            score += 10
+
+    return min(50.0, score)
+
+
+def _duo_wow_boost(insight: dict) -> float:
+    """
+    v6: +10 for collab_shock when BOTH actors are top-tier (primary + 150+ films).
+
+    Rationale: a pairing of two globally recognisable lead actors is far more
+    shareable than a pairing where only one is famous.  This bonus only fires
+    when _actor_stats has at least 2 entries and every entry qualifies.
+    """
+    if insight.get("type") != "collab_shock":
+        return 0.0
+    stats = insight.get("_actor_stats", [])
+    if len(stats) < 2:
+        return 0.0
+    both_top_tier = all(s["is_primary"] and s["film_count"] >= 150 for s in stats)
+    return 10.0 if both_top_tier else 0.0
+
+
+def _headline_readiness(insight: dict) -> float:
+    """
+    v6: Checks whether the insight produces a clean, punchy card.
+
+    Rules:
+      value is int/float AND unit is in SIMPLE_UNITS → no adjustment (card is ready)
+      Otherwise → -8 penalty (stat is confusing or abstract on a glance-read card)
+
+    SIMPLE_UNITS matches the set already used by _relatability_score so that
+    the two functions are consistent — this function exists as a hard structural
+    check separate from the graduated relatability score.
+    """
+    SIMPLE_UNITS = {"films", "films together", "connections", "films in 5 years", "industries"}
+    value = insight.get("value")
+    unit  = insight.get("unit", "")
+    if isinstance(value, (int, float)) and unit in SIMPLE_UNITS:
+        return 0.0
+    return -8.0
 
 
 def _score(insight: dict) -> float:
     """
-    Composite score = type_base + fame + relatability + wow.
+    Composite score = type_base + fame + relatability + wow + duo_wow + headline.
 
-    Theoretical range: 5–103.  Minimum for selection: _MIN_SCORE = 55.
+    Theoretical range: ~5–133.  Minimum for selection: _MIN_SCORE = 55.
 
-    type_base  — fixed per-type weight encoding the inherent curiosity value
-                 of the insight category (unchanged from v4).
-    fame       — 0–40: how well-known and prolific are the actors?
-    relatability — 0–18: how immediately understandable is the stat?
-    wow        — 0–30: how extreme or surprising is the number/pattern?
+    type_base     — fixed per-type weight (curiosity value of the insight category)
+    fame          — 0–50: how well-known and prolific are the actors?
+                          (raised from 40 in v6 to accommodate recognition boost)
+    relatability  — 0–18: how immediately understandable is the stat?
+    wow           — 0–50: how extreme or surprising is the number/pattern?
+                          (raised from 30 in v6 to accommodate shock override)
+    duo_wow [v6]  — 0 or +10: collab_shock where both actors are globally famous
+    headline [v6] — 0 or -8: penalty when value/unit combo won't render cleanly
 
     Sub-scores are stored in insight["_score_breakdown"] for debug logging.
     """
@@ -656,18 +729,22 @@ def _score(insight: dict) -> float:
         "director":          8,
         "supporting":       10,
     }
-    base   = TYPE_BASE.get(insight.get("type", ""), 5)
-    fame   = _fame_score(insight)
-    relate = _relatability_score(insight)
-    wow    = _wow_score(insight)
-    total  = base + fame + relate + wow
+    base     = TYPE_BASE.get(insight.get("type", ""), 5)
+    fame     = _fame_score(insight)
+    relate   = _relatability_score(insight)
+    wow      = _wow_score(insight)
+    duo      = _duo_wow_boost(insight)
+    headline = _headline_readiness(insight)
+    total    = base + fame + relate + wow + duo + headline
 
     insight["_score_breakdown"] = {
-        "base":          round(base,   1),
-        "fame":          round(fame,   1),
-        "relatability":  round(relate, 1),
-        "wow":           round(wow,    1),
-        "total":         round(total,  1),
+        "base":          round(base,     1),
+        "fame":          round(fame,     1),
+        "relatability":  round(relate,   1),
+        "wow":           round(wow,      1),
+        "duo_wow":       round(duo,      1),
+        "headline":      round(headline, 1),
+        "total":         round(total,    1),
     }
     return total
 
@@ -736,6 +813,29 @@ def _hard_filter(candidates: list) -> list:
             logger.debug("hard_filter: drop hidden_dominance %r — no actor_stats", ins.get("headline"))
             continue
 
+        # Rule 6 [v6]: supporting actor exception.
+        #   hidden_dominance with film_count >= 200 is allowed (shock value).
+        #   All other insight types must have at least one primary actor.
+        #   This prevents obscure non-primary actors from leaking into
+        #   types (e.g. collab_shock) where they produce unrecognisable cards.
+        if itype != "hidden_dominance":
+            stats = ins.get("_actor_stats", [])
+            if stats and not any(s["is_primary"] for s in stats):
+                logger.debug(
+                    "hard_filter: drop %s %r — no primary actor",
+                    itype, ins.get("headline"),
+                )
+                continue
+        else:
+            # hidden_dominance: require film_count >= 200 for the shock to land
+            stats = ins.get("_actor_stats", [])
+            if stats and stats[0]["film_count"] < 200:
+                logger.debug(
+                    "hard_filter: drop hidden_dominance %r — film_count %d < 200",
+                    ins.get("headline"), stats[0]["film_count"],
+                )
+                continue
+
         filtered.append(ins)
 
     logger.info("hard_filter: %d → %d candidates", len(candidates), len(filtered))
@@ -746,22 +846,35 @@ def _hard_filter(candidates: list) -> list:
 
 def _pick_diverse(candidates: list) -> list:
     """
-    Select the best 3–4 insights with strict diversity enforcement.
+    Select the best 3–4 insights with diversity enforcement.
 
-    Algorithm:
-      1. Score every candidate; store breakdown in _score_breakdown.
-      2. Apply _MIN_SCORE floor — discard below-threshold candidates.
-      3. Sort survivors highest-score first.
-      4. Greedy one-per-category pick: add a candidate only if its category
-         has not yet appeared in the result.
-      5. Stop at _MAX_INSIGHTS or when candidates are exhausted.
+    v6 algorithm (replaces strict one-per-category):
 
-    Categories (4 buckets → natural diversity):
-      collaboration → collab_shock, director_loyalty
-      network       → network_power
-      career        → hidden_dominance, career_peak
-      industry      → cross_industry
+    Pass 1 — Diversity pass (one per category):
+      Score all candidates, apply _MIN_SCORE floor, sort best-first.
+      Greedy pick: add the best candidate per category.
+      Allowed categories: collaboration, network, career, industry.
+
+    Pass 2 — Relaxed pass (fill to _MAX_INSIGHTS):
+      If result < _MAX_INSIGHTS after Pass 1, fill with the next highest-
+      scoring eligible candidate regardless of category — BUT only if its
+      score > 75 (avoids filling with mediocre cards).
+      A second insight from the same category is admitted here only if
+      the category has already contributed exactly 1 and the candidate's
+      score exceeds 75.
+
+    Pass 3 — Supporting cap:
+      At most 1 hidden_dominance (supporting-actor) insight in final output.
+      If two sneak through (possible when fallback fill fires), drop the
+      lower-scoring one.
+
+    Constraints:
+      • Max _MAX_INSIGHTS (4) total
+      • Max 1 supporting-actor insight (hidden_dominance)
+      • Candidates with no _score_breakdown are not admitted (safety)
     """
+    _FALLBACK_SCORE_THRESHOLD = 75.0   # min score to be admitted in pass 2
+
     logger.info("_pick_diverse: %d candidates entering", len(candidates))
 
     for ins in candidates:
@@ -770,8 +883,9 @@ def _pick_diverse(candidates: list) -> list:
         ins["confidence"] = round(min(1.0, s / 100), 3)
         bd = ins["_score_breakdown"]
         logger.debug(
-            "score %-20s  total=%5.1f  fame=%4.1f  relate=%4.1f  wow=%4.1f  | %r",
+            "score %-20s  total=%5.1f  fame=%4.1f  relate=%4.1f  wow=%4.1f  duo=%4.1f  hl=%4.1f  | %r",
             ins["type"], s, bd["fame"], bd["relatability"], bd["wow"],
+            bd.get("duo_wow", 0), bd.get("headline", 0),
             ins.get("headline"),
         )
 
@@ -780,17 +894,45 @@ def _pick_diverse(candidates: list) -> list:
 
     eligible.sort(key=lambda x: x["_score"], reverse=True)
 
-    seen_categories: set = set()
+    # ── Pass 1: one per category ──────────────────────────────────────────────
+    category_count: dict = {}   # category → count of slots used
     result: list = []
 
     for ins in eligible:
-        cat = ins.get("category", "")
-        if cat in seen_categories:
-            continue
-        seen_categories.add(cat)
-        result.append(ins)
         if len(result) >= _MAX_INSIGHTS:
             break
+        cat = ins.get("category", "")
+        if category_count.get(cat, 0) == 0:
+            category_count[cat] = category_count.get(cat, 0) + 1
+            result.append(ins)
+
+    # ── Pass 2: fallback fill (relaxed diversity) ────────────────────────────
+    if len(result) < _MAX_INSIGHTS:
+        used_ids = {id(i) for i in result}
+        for ins in eligible:
+            if len(result) >= _MAX_INSIGHTS:
+                break
+            if id(ins) in used_ids:
+                continue
+            if ins["_score"] <= _FALLBACK_SCORE_THRESHOLD:
+                continue
+            cat = ins.get("category", "")
+            # Allow a second card from a category only if it scored high enough
+            if category_count.get(cat, 0) < 2:
+                category_count[cat] = category_count.get(cat, 0) + 1
+                result.append(ins)
+                used_ids.add(id(ins))
+
+    # ── Pass 3: supporting cap (max 1 hidden_dominance) ──────────────────────
+    supporting = [i for i in result if i.get("type") == "hidden_dominance"]
+    if len(supporting) > 1:
+        # Keep the highest-scoring one, remove the rest
+        supporting.sort(key=lambda x: x["_score"], reverse=True)
+        to_remove = set(id(i) for i in supporting[1:])
+        result = [i for i in result if id(i) not in to_remove]
+
+    # Re-sort final result highest-score first for carousel ordering
+    result.sort(key=lambda x: x["_score"], reverse=True)
 
     logger.info(
         "insights selected: %d  %s",
