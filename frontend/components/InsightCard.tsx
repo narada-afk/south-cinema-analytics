@@ -109,7 +109,7 @@ export default function InsightCard({
   return (
     <Link href={href} className="block h-full">
       <div
-        className="group relative rounded-2xl overflow-hidden h-[220px] flex cursor-pointer
+        className="group relative rounded-2xl h-[220px] flex cursor-pointer
                    hover:scale-[1.02] hover:brightness-110 transition-all duration-200
                    border border-white/5"
         style={{ background: bgColor }}
@@ -140,22 +140,30 @@ export default function InsightCard({
 
         {/* Left accent glow — colour bleed from gradient */}
         <div
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 pointer-events-none rounded-2xl"
           style={{
             background: `radial-gradient(ellipse 90% 110% at 0% 50%, ${glowColor}, transparent 70%)`,
+          }}
+        />
+
+        {/* Text-readability scrim — dark left, fades toward image on right */}
+        <div
+          className="absolute inset-0 pointer-events-none rounded-2xl z-[1]"
+          style={{
+            background: 'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 55%, transparent 100%)',
           }}
         />
 
         {/* ── LEFT: text content ──────────────────────────────── */}
         <div
           className="relative z-10 flex flex-col justify-between p-6 pr-4 flex-1 min-w-0"
-          style={{ maxWidth: '62%' }}
+          style={{ maxWidth: '60%' }}
         >
 
-          {/* Row 1 — Header / hook */}
+          {/* Row 1 — Header / hook: dimmed white tag */}
           <span
             className="text-[10px] font-bold uppercase tracking-widest leading-none"
-            style={{ color: accentColor }}
+            style={{ color: 'rgba(255,255,255,0.7)' }}
           >
             {label}
           </span>
@@ -168,15 +176,15 @@ export default function InsightCard({
             {statUnit && (
               <div
                 className="text-[12px] font-semibold mt-[5px] leading-none tracking-wide"
-                style={{ color: accentColor, opacity: 0.7 }}
+                style={{ color: accentColor, opacity: 0.8 }}
               >
                 {statUnit}
               </div>
             )}
           </div>
 
-          {/* Row 3 — One-liner insight */}
-          <p className="text-[11px] text-white/35 leading-snug line-clamp-1 min-w-0">
+          {/* Row 3 — One-liner insight: bright, wraps to 2 lines */}
+          <p className="text-[11px] text-white/85 leading-snug line-clamp-2 min-w-0">
             {headline}
           </p>
 
@@ -186,15 +194,15 @@ export default function InsightCard({
         {actors.length > 0 && (
           <div className="relative flex-shrink-0 flex items-center self-stretch">
 
-            {/* Left-edge gradient — fades avatar into card bg, prevents text overlap */}
+            {/* Left-edge gradient — wide fade from card bg into avatar zone */}
             <div
-              className="absolute inset-y-0 left-0 w-16 pointer-events-none z-10"
+              className="absolute inset-y-0 left-0 w-20 pointer-events-none z-10"
               style={{ background: `linear-gradient(to right, ${bgColor} 0%, transparent 100%)` }}
             />
 
-            {/* Single actor — portrait anchored bottom-right, ghosted (35% opacity) */}
+            {/* Single actor — larger portrait, bleeds below + right of card */}
             {singleActor && (
-              <div className="relative self-end mb-[-22px] mr-[-12px]" style={{ opacity: 0.35 }}>
+              <div className="relative self-end mb-[-30px] mr-[-18px]" style={{ opacity: 0.35 }}>
                 <div
                   className="absolute inset-0 blur-2xl scale-75"
                   style={{ background: glowColor }}
@@ -203,30 +211,30 @@ export default function InsightCard({
                   <Image
                     src={`/avatars/${actors[0].avatarSlug}.png`}
                     alt={actors[0].name}
-                    width={126}
-                    height={126}
+                    width={158}
+                    height={158}
                     className="relative object-cover object-top"
                     style={{
                       maskImage:       'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.88) 38%, rgba(0,0,0,0) 100%)',
                       WebkitMaskImage: 'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.88) 38%, rgba(0,0,0,0) 100%)',
-                      filter:          'drop-shadow(0 8px 20px rgba(0,0,0,0.55))',
+                      filter:          'drop-shadow(0 8px 24px rgba(0,0,0,0.6))',
                     }}
                     onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                   />
                 ) : (
-                  <ActorAvatar name={actors[0].name} size={116} />
+                  <ActorAvatar name={actors[0].name} size={146} />
                 )}
               </div>
             )}
 
-            {/* Two actors — overlapping portraits, anchored bottom-right, ghosted (35% opacity) */}
+            {/* Two actors — larger overlapping portraits, bleed bottom-right */}
             {multiActor && (
-              <div className="relative flex items-end self-end mb-[-22px] mr-[-8px]" style={{ opacity: 0.35 }}>
+              <div className="relative flex items-end self-end mb-[-30px] mr-[-14px]" style={{ opacity: 0.35 }}>
                 {actors.slice(0, 2).map((actor, i) => (
                   <div
                     key={actor.name}
                     className="relative"
-                    style={{ marginLeft: i === 0 ? 0 : -20, zIndex: i === 0 ? 2 : 1 }}
+                    style={{ marginLeft: i === 0 ? 0 : -26, zIndex: i === 0 ? 2 : 1 }}
                   >
                     <div
                       className="absolute inset-0 blur-xl scale-75"
@@ -236,18 +244,18 @@ export default function InsightCard({
                       <Image
                         src={`/avatars/${actor.avatarSlug}.png`}
                         alt={actor.name}
-                        width={86}
-                        height={86}
+                        width={108}
+                        height={108}
                         className="relative object-cover object-top"
                         style={{
                           maskImage:       'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.82) 38%, rgba(0,0,0,0) 100%)',
                           WebkitMaskImage: 'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.82) 38%, rgba(0,0,0,0) 100%)',
-                          filter:          'drop-shadow(0 6px 14px rgba(0,0,0,0.6))',
+                          filter:          'drop-shadow(0 6px 16px rgba(0,0,0,0.65))',
                         }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                       />
                     ) : (
-                      <ActorAvatar name={actor.name} size={76} />
+                      <ActorAvatar name={actor.name} size={96} />
                     )}
                   </div>
                 ))}
