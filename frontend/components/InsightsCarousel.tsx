@@ -25,7 +25,8 @@ import { useEffect, useRef } from 'react'
 import InsightCard, { type InsightCardData } from '@/components/InsightCard'
 
 // Width of each card in px — ~10 % wider than a 3-col grid cell at 1 200 px
-const CARD_W = 360
+// Width tuned for h-[220px] editorial cards — wider aspect ratio
+const CARD_W = 380
 
 // Scroll speed in px / ms  →  ~50 px/s  →  slow, comfortable for reading
 const SPEED = 0.05

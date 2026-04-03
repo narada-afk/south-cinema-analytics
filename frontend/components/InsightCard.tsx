@@ -53,6 +53,27 @@ const HOVER_SHADOW: Record<InsightCardData['gradient'], string> = {
   amber:  '0 0 36px rgba(251,191,36,0.45), 0 8px 28px rgba(0,0,0,0.5)',
 }
 
+/**
+ * Split a stat string into a dominant numeral + optional unit label.
+ *
+ * Examples
+ *   "14 films together"  →  { main: "14",        unit: "films together" }
+ *   "4 industries"       →  { main: "4",          unit: "industries"     }
+ *   "2005–2010"          →  { main: "2005–2010",  unit: null             }
+ *   42                   →  { main: "42",          unit: null             }
+ */
+function splitStat(stat: string | number): { main: string; unit: string | null } {
+  const s = String(stat)
+  // Year-range strings (e.g. "2005–2010") — keep together as the main value
+  if (/^\d{4}[–\-]\d{4}$/.test(s)) return { main: s, unit: null }
+  // Plain number — no unit
+  if (/^\d+$/.test(s)) return { main: s, unit: null }
+  // "14 films together" → main="14", unit="films together"
+  const spaceIdx = s.indexOf(' ')
+  if (spaceIdx !== -1) return { main: s.slice(0, spaceIdx), unit: s.slice(spaceIdx + 1) }
+  return { main: s, unit: null }
+}
+
 export default function InsightCard({
   emoji,
   label,
@@ -63,12 +84,14 @@ export default function InsightCard({
   gradient,
   href = '#',
 }: InsightCardData) {
-  const accentColor  = ACCENT[gradient]
-  const bgColor      = CARD_BG[gradient]
-  const glowColor    = GLOW[gradient]
-  const hoverShadow  = HOVER_SHADOW[gradient]
+  const accentColor = ACCENT[gradient]
+  const bgColor     = CARD_BG[gradient]
+  const glowColor   = GLOW[gradient]
+  const hoverShadow = HOVER_SHADOW[gradient]
 
   const [copied, setCopied] = useState(false)
+
+  const { main: statMain, unit: statUnit } = splitStat(stat)
 
   function handleShare(e: React.MouseEvent) {
     e.preventDefault()
@@ -86,17 +109,19 @@ export default function InsightCard({
   return (
     <Link href={href} className="block h-full">
       <div
-        className="group relative rounded-2xl overflow-hidden h-[168px] flex cursor-pointer
+        className="group relative rounded-2xl overflow-hidden h-[220px] flex cursor-pointer
                    hover:scale-[1.02] hover:brightness-110 transition-all duration-200
                    border border-white/5"
         style={{ background: bgColor }}
         onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = hoverShadow }}
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
       >
+
         {/* Share button — appears on hover */}
         <button
           onClick={handleShare}
-          className="absolute top-3 right-3 z-20 w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          className="absolute top-3 right-3 z-20 w-7 h-7 rounded-full flex items-center justify-center
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200"
           style={{ background: 'rgba(255,255,255,0.10)' }}
           title={copied ? 'Copied!' : 'Share'}
           aria-label="Share"
@@ -104,51 +129,75 @@ export default function InsightCard({
           {copied ? (
             <span className="text-[10px] text-green-400 font-bold">✓</span>
           ) : (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              style={{ color: 'rgba(255,255,255,0.5)' }}>
               <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
               <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
             </svg>
           )}
         </button>
-        {/* Left radial glow — colour bleed from the accent */}
+
+        {/* Left accent glow — colour bleed from gradient */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: `radial-gradient(ellipse 90% 90% at 0% 50%, ${glowColor}, transparent 70%)`,
+            background: `radial-gradient(ellipse 90% 110% at 0% 50%, ${glowColor}, transparent 70%)`,
           }}
         />
 
-        {/* ── LEFT: text content ───────────────────────────── */}
-        <div className="relative z-10 flex flex-col p-5 pr-3 flex-1 min-w-0" style={{ maxWidth: '62%' }}>
+        {/* ── LEFT: text content ──────────────────────────────── */}
+        <div
+          className="relative z-10 flex flex-col p-7 pr-4 flex-1 min-w-0"
+          style={{ maxWidth: '62%' }}
+        >
+          {/* ── Top group: label → stat (tightly coupled) ── */}
+          <div className="flex flex-col gap-[14px]">
 
-          {/* Label */}
-          <span
-            className="text-[10px] font-bold uppercase tracking-widest"
-            style={{ color: accentColor }}
-          >
-            {label}
-          </span>
+            {/* Label — small, colored, all-caps */}
+            <span
+              className="text-[10px] font-bold uppercase tracking-widest leading-none"
+              style={{ color: accentColor }}
+            >
+              {label}
+            </span>
 
-          {/* Big stat — primary visual focus */}
-          <div className="text-[3.5rem] font-black text-white leading-none tracking-tight mt-2">
-            {stat}
+            {/* Stat — dominant numeral + smaller unit line */}
+            <div>
+              <div className="text-[3rem] font-black text-white leading-none tracking-tight">
+                {statMain}
+              </div>
+              {statUnit && (
+                <div
+                  className="text-[12px] font-semibold mt-[6px] leading-none tracking-wide"
+                  style={{ color: accentColor, opacity: 0.75 }}
+                >
+                  {statUnit}
+                </div>
+              )}
+            </div>
+
           </div>
 
-          {/* Supporting line — single line, low opacity, pinned to bottom */}
-          <p className="text-[11px] text-white/28 leading-snug line-clamp-1 min-w-0 mt-auto pt-2">
+          {/* ── Description — pinned to bottom ── */}
+          <p className="text-[11px] text-white/30 leading-snug line-clamp-1 min-w-0 mt-auto">
             {headline}
           </p>
         </div>
 
-        {/* ── RIGHT: actor portrait(s) ─────────────────────── */}
+        {/* ── RIGHT: actor portrait(s) ──────────────────────── */}
         {actors.length > 0 && (
           <div className="relative flex-shrink-0 flex items-center self-stretch">
 
-            {/* Single actor — large portrait bleeding off bottom-right, no circle */}
+            {/* Left-edge gradient — fades avatar into card bg, prevents text overlap */}
+            <div
+              className="absolute inset-y-0 left-0 w-16 pointer-events-none z-10"
+              style={{ background: `linear-gradient(to right, ${bgColor} 0%, transparent 100%)` }}
+            />
+
+            {/* Single actor — portrait anchored bottom-right, slight bleed */}
             {singleActor && (
-              <div className="relative self-end mb-[-24px] mr-[-20px]">
-                {/* Glow halo behind portrait */}
+              <div className="relative self-end mb-[-28px] mr-[-14px]">
                 <div
                   className="absolute inset-0 blur-2xl scale-75"
                   style={{ background: glowColor }}
@@ -157,54 +206,51 @@ export default function InsightCard({
                   <Image
                     src={`/avatars/${actors[0].avatarSlug}.png`}
                     alt={actors[0].name}
-                    width={160}
-                    height={160}
+                    width={140}
+                    height={140}
                     className="relative object-cover object-top"
                     style={{
-                      maskImage: 'radial-gradient(ellipse 80% 85% at 50% 45%, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%)',
-                      WebkitMaskImage: 'radial-gradient(ellipse 80% 85% at 50% 45%, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%)',
-                      filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))',
+                      maskImage:       'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.88) 38%, rgba(0,0,0,0) 100%)',
+                      WebkitMaskImage: 'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.88) 38%, rgba(0,0,0,0) 100%)',
+                      filter:          'drop-shadow(0 8px 20px rgba(0,0,0,0.55))',
                     }}
                     onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                   />
                 ) : (
-                  <ActorAvatar name={actors[0].name} size={150} />
+                  <ActorAvatar name={actors[0].name} size={130} />
                 )}
               </div>
             )}
 
-            {/* Two actors — overlapping portraits, no circle */}
+            {/* Two actors — overlapping portraits, anchored bottom-right */}
             {multiActor && (
-              <div className="relative flex items-end self-end mb-[-24px] mr-[-16px]">
+              <div className="relative flex items-end self-end mb-[-28px] mr-[-10px]">
                 {actors.slice(0, 2).map((actor, i) => (
                   <div
                     key={actor.name}
                     className="relative"
-                    style={{
-                      marginLeft: i === 0 ? 0 : -28,
-                      zIndex: i === 0 ? 2 : 1,
-                    }}
+                    style={{ marginLeft: i === 0 ? 0 : -22, zIndex: i === 0 ? 2 : 1 }}
                   >
                     <div
                       className="absolute inset-0 blur-xl scale-75"
-                      style={{ background: glowColor, opacity: 0.5 }}
+                      style={{ background: glowColor, opacity: 0.45 }}
                     />
                     {actor.avatarSlug ? (
                       <Image
                         src={`/avatars/${actor.avatarSlug}.png`}
                         alt={actor.name}
-                        width={110}
-                        height={110}
+                        width={95}
+                        height={95}
                         className="relative object-cover object-top"
                         style={{
-                          maskImage: 'radial-gradient(ellipse 80% 85% at 50% 45%, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
-                          WebkitMaskImage: 'radial-gradient(ellipse 80% 85% at 50% 45%, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
-                          filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.6))',
+                          maskImage:       'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.82) 38%, rgba(0,0,0,0) 100%)',
+                          WebkitMaskImage: 'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.82) 38%, rgba(0,0,0,0) 100%)',
+                          filter:          'drop-shadow(0 6px 14px rgba(0,0,0,0.6))',
                         }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                       />
                     ) : (
-                      <ActorAvatar name={actor.name} size={100} />
+                      <ActorAvatar name={actor.name} size={85} />
                     )}
                   </div>
                 ))}
@@ -213,6 +259,7 @@ export default function InsightCard({
 
           </div>
         )}
+
       </div>
     </Link>
   )
