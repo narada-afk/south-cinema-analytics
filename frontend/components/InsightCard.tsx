@@ -148,7 +148,7 @@ export default function InsightCard({
 
         {/* ── LEFT: text content ──────────────────────────────── */}
         <div
-          className="relative z-10 flex flex-col p-7 pr-4 flex-1 min-w-0"
+          className="relative z-10 flex flex-col p-6 pr-4 flex-1 min-w-0"
           style={{ maxWidth: '62%' }}
         >
           {/* ── Top group: label → stat (tightly coupled) ── */}
@@ -197,7 +197,7 @@ export default function InsightCard({
 
             {/* Single actor — portrait anchored bottom-right, slight bleed */}
             {singleActor && (
-              <div className="relative self-end mb-[-28px] mr-[-14px]">
+              <div className="relative self-end mb-[-22px] mr-[-12px]">
                 <div
                   className="absolute inset-0 blur-2xl scale-75"
                   style={{ background: glowColor }}
@@ -206,8 +206,8 @@ export default function InsightCard({
                   <Image
                     src={`/avatars/${actors[0].avatarSlug}.png`}
                     alt={actors[0].name}
-                    width={140}
-                    height={140}
+                    width={126}
+                    height={126}
                     className="relative object-cover object-top"
                     style={{
                       maskImage:       'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.88) 38%, rgba(0,0,0,0) 100%)',
@@ -217,19 +217,19 @@ export default function InsightCard({
                     onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                   />
                 ) : (
-                  <ActorAvatar name={actors[0].name} size={130} />
+                  <ActorAvatar name={actors[0].name} size={116} />
                 )}
               </div>
             )}
 
             {/* Two actors — overlapping portraits, anchored bottom-right */}
             {multiActor && (
-              <div className="relative flex items-end self-end mb-[-28px] mr-[-10px]">
+              <div className="relative flex items-end self-end mb-[-22px] mr-[-8px]">
                 {actors.slice(0, 2).map((actor, i) => (
                   <div
                     key={actor.name}
                     className="relative"
-                    style={{ marginLeft: i === 0 ? 0 : -22, zIndex: i === 0 ? 2 : 1 }}
+                    style={{ marginLeft: i === 0 ? 0 : -20, zIndex: i === 0 ? 2 : 1 }}
                   >
                     <div
                       className="absolute inset-0 blur-xl scale-75"
@@ -239,8 +239,8 @@ export default function InsightCard({
                       <Image
                         src={`/avatars/${actor.avatarSlug}.png`}
                         alt={actor.name}
-                        width={95}
-                        height={95}
+                        width={86}
+                        height={86}
                         className="relative object-cover object-top"
                         style={{
                           maskImage:       'radial-gradient(ellipse 72% 88% at 65% 52%, rgba(0,0,0,0.82) 38%, rgba(0,0,0,0) 100%)',
@@ -250,7 +250,7 @@ export default function InsightCard({
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                       />
                     ) : (
-                      <ActorAvatar name={actor.name} size={85} />
+                      <ActorAvatar name={actor.name} size={76} />
                     )}
                   </div>
                 ))}

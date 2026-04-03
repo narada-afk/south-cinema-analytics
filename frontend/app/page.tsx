@@ -273,7 +273,7 @@ export default async function HomePage({
         <HeroSearch trendingActors={trendingChips} />
 
         {/* ── 2. Insights (moved above fold — viral engine) ────────────────── */}
-        <section className="mt-14">
+        <section className="mt-12 mb-12">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-white/40 mb-5">
             🔥 Did you know?
           </h2>
@@ -281,7 +281,7 @@ export default async function HomePage({
         </section>
 
         {/* ── 3. Compare Entry ─────────────────────────────────────────────── */}
-        <section className="mt-14">
+        <section className="mt-0">
           <CompareEntry />
         </section>
 
