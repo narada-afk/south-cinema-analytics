@@ -204,7 +204,11 @@ async function fetchPageData(industry: string) {
         subtext,
         actors:   insight.actors
           .slice(0, insight.type === 'director' ? 1 : 2)
-          .map((name) => ({ name })),
+          .map((name) => ({
+            name,
+            // slug must match /public/avatars/{slug}.png naming convention
+            avatarSlug: name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+          })),
         gradient: GRADIENTS[i % GRADIENTS.length],
         href,
       }

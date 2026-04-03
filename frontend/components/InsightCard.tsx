@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import ActorAvatar from './ActorAvatar'
 
 export interface InsightCardData {
   emoji: string
@@ -193,56 +192,50 @@ export default function InsightCard({
               style={{ background: `linear-gradient(to right, ${bgColor} 0%, transparent 100%)` }}
             />
 
-            {/* Single actor */}
-            {singleActor && (
-              <div className="relative" style={{ opacity: 0.75 }}>
-                {actors[0].avatarSlug ? (
-                  <Image
-                    src={`/avatars/${actors[0].avatarSlug}.png`}
-                    alt={actors[0].name}
-                    width={180}
-                    height={180}
-                    className="relative object-cover object-top"
-                    style={{
-                      maskImage:       'radial-gradient(ellipse 95% 95% at 100% 100%, black 25%, transparent 72%)',
-                      WebkitMaskImage: 'radial-gradient(ellipse 95% 95% at 100% 100%, black 25%, transparent 72%)',
-                      filter:          'drop-shadow(0 8px 24px rgba(0,0,0,0.5))',
-                    }}
-                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                  />
-                ) : (
-                  <ActorAvatar name={actors[0].name} size={160} />
-                )}
+            {/* Single actor — image bleeds from bottom-right, no circular crop */}
+            {singleActor && actors[0].avatarSlug && (
+              <div className="relative" style={{ opacity: 0.82 }}>
+                <Image
+                  src={`/avatars/${actors[0].avatarSlug}.png`}
+                  alt={actors[0].name}
+                  width={190}
+                  height={190}
+                  className="object-cover object-top"
+                  style={{
+                    maskImage:       'radial-gradient(ellipse 95% 95% at 100% 100%, black 25%, transparent 72%)',
+                    WebkitMaskImage: 'radial-gradient(ellipse 95% 95% at 100% 100%, black 25%, transparent 72%)',
+                    filter:          'drop-shadow(0 8px 24px rgba(0,0,0,0.4))',
+                  }}
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
               </div>
             )}
 
-            {/* Two actors — overlapping */}
+            {/* Two actors — overlapping, no circular crop */}
             {multiActor && (
-              <div className="relative flex items-end" style={{ opacity: 0.75 }}>
+              <div className="relative flex items-end" style={{ opacity: 0.82 }}>
                 {actors.slice(0, 2).map((actor, i) => (
-                  <div
-                    key={actor.name}
-                    className="relative"
-                    style={{ marginLeft: i === 0 ? 0 : -30, zIndex: i === 0 ? 2 : 1 }}
-                  >
-                    {actor.avatarSlug ? (
+                  actor.avatarSlug ? (
+                    <div
+                      key={actor.name}
+                      className="relative"
+                      style={{ marginLeft: i === 0 ? 0 : -30, zIndex: i === 0 ? 2 : 1 }}
+                    >
                       <Image
                         src={`/avatars/${actor.avatarSlug}.png`}
                         alt={actor.name}
-                        width={120}
-                        height={120}
-                        className="relative object-cover object-top"
+                        width={128}
+                        height={128}
+                        className="object-cover object-top"
                         style={{
                           maskImage:       'radial-gradient(ellipse 95% 95% at 100% 100%, black 20%, transparent 70%)',
                           WebkitMaskImage: 'radial-gradient(ellipse 95% 95% at 100% 100%, black 20%, transparent 70%)',
-                          filter:          'drop-shadow(0 6px 16px rgba(0,0,0,0.55))',
+                          filter:          'drop-shadow(0 6px 16px rgba(0,0,0,0.45))',
                         }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                       />
-                    ) : (
-                      <ActorAvatar name={actor.name} size={100} />
-                    )}
-                  </div>
+                    </div>
+                  ) : null
                 ))}
               </div>
             )}
