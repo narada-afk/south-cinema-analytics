@@ -15,41 +15,34 @@ export interface InsightCardData {
   href?: string
 }
 
+// Bright, vivid single-tone card backgrounds — uniform across the whole card
 const CARD_BG: Record<InsightCardData['gradient'], string> = {
-  red:    '#130507',
-  purple: '#0b0613',
-  orange: '#130904',
-  blue:   '#030f19',
-  green:  '#031308',
-  amber:  '#130b02',
+  red:    '#9b1c1c',
+  purple: '#6b21a8',
+  orange: '#9a3412',
+  blue:   '#1e3a8a',
+  green:  '#14532d',
+  amber:  '#92400e',
 }
 
+// Light accent tints — readable on bright backgrounds
 const ACCENT: Record<InsightCardData['gradient'], string> = {
-  red:    '#f87171',
-  purple: '#c084fc',
-  orange: '#fb923c',
-  blue:   '#60a5fa',
-  green:  '#4ade80',
-  amber:  '#fbbf24',
+  red:    '#fca5a5',
+  purple: '#d8b4fe',
+  orange: '#fdba74',
+  blue:   '#93c5fd',
+  green:  '#86efac',
+  amber:  '#fcd34d',
 }
 
-const GLOW: Record<InsightCardData['gradient'], string> = {
-  red:    'rgba(239,68,68,0.18)',
-  purple: 'rgba(168,85,247,0.18)',
-  orange: 'rgba(249,115,22,0.18)',
-  blue:   'rgba(59,130,246,0.18)',
-  green:  'rgba(34,197,94,0.18)',
-  amber:  'rgba(251,191,36,0.18)',
-}
-
-// Stronger glow for hover state — same hue, higher opacity
+// Hover shadow — lifted glow matching the card hue
 const HOVER_SHADOW: Record<InsightCardData['gradient'], string> = {
-  red:    '0 0 36px rgba(239,68,68,0.45), 0 8px 28px rgba(0,0,0,0.5)',
-  purple: '0 0 36px rgba(168,85,247,0.45), 0 8px 28px rgba(0,0,0,0.5)',
-  orange: '0 0 36px rgba(249,115,22,0.45), 0 8px 28px rgba(0,0,0,0.5)',
-  blue:   '0 0 36px rgba(59,130,246,0.45), 0 8px 28px rgba(0,0,0,0.5)',
-  green:  '0 0 36px rgba(34,197,94,0.45),  0 8px 28px rgba(0,0,0,0.5)',
-  amber:  '0 0 36px rgba(251,191,36,0.45), 0 8px 28px rgba(0,0,0,0.5)',
+  red:    '0 0 40px rgba(220,38,38,0.6),  0 8px 28px rgba(0,0,0,0.4)',
+  purple: '0 0 40px rgba(147,51,234,0.6), 0 8px 28px rgba(0,0,0,0.4)',
+  orange: '0 0 40px rgba(234,88,12,0.6),  0 8px 28px rgba(0,0,0,0.4)',
+  blue:   '0 0 40px rgba(37,99,235,0.6),  0 8px 28px rgba(0,0,0,0.4)',
+  green:  '0 0 40px rgba(22,163,74,0.6),  0 8px 28px rgba(0,0,0,0.4)',
+  amber:  '0 0 40px rgba(217,119,6,0.6),  0 8px 28px rgba(0,0,0,0.4)',
 }
 
 /**
@@ -85,7 +78,6 @@ export default function InsightCard({
 }: InsightCardData) {
   const accentColor = ACCENT[gradient]
   const bgColor     = CARD_BG[gradient]
-  const glowColor   = GLOW[gradient]
   const hoverShadow = HOVER_SHADOW[gradient]
 
   const [copied, setCopied] = useState(false)
@@ -137,15 +129,6 @@ export default function InsightCard({
           )}
         </button>
 
-        {/* Left accent glow — colour bleed from gradient */}
-        <div
-          className="absolute inset-0 pointer-events-none rounded-2xl"
-          style={{
-            background: `radial-gradient(ellipse 90% 110% at 0% 50%, ${glowColor}, transparent 70%)`,
-          }}
-        />
-
-
         {/* ── LEFT: text content ──────────────────────────────── */}
         <div
           className="relative z-10 flex flex-col justify-between p-6 pr-4 flex-1 min-w-0"
@@ -182,33 +165,33 @@ export default function InsightCard({
 
         </div>
 
-        {/* ── RIGHT: actor portrait — absolutely positioned so the card bg is seamless */}
+        {/* ── RIGHT: actor portrait — floats on the uniform card bg */}
         {actors.length > 0 && (
           <div className="absolute bottom-0 right-0 pointer-events-none z-[2]">
 
-            {/* Left-to-right fade — blends portrait into the continuous card background */}
+            {/* Soft left-edge fade so portrait doesn't cut hard into the text column */}
             <div
-              className="absolute inset-y-0 left-0 w-32 z-10"
+              className="absolute inset-y-0 left-0 w-20 z-10"
               style={{ background: `linear-gradient(to right, ${bgColor} 0%, transparent 100%)` }}
             />
 
-            {/* Single actor — radial mask keeps face/body, dissolves background on all sides */}
+            {/* Single actor — tight radial mask, face + upper body only */}
             {singleActor && actors[0].avatarSlug && (
               <Image
                 src={`/avatars/${actors[0].avatarSlug}.png`}
                 alt={actors[0].name}
-                width={200}
-                height={200}
+                width={210}
+                height={210}
                 className="object-cover object-top"
                 style={{
-                  maskImage:       'radial-gradient(ellipse 70% 80% at 68% 38%, black 30%, transparent 78%)',
-                  WebkitMaskImage: 'radial-gradient(ellipse 70% 80% at 68% 38%, black 30%, transparent 78%)',
+                  maskImage:       'radial-gradient(ellipse 62% 72% at 62% 32%, black 25%, transparent 65%)',
+                  WebkitMaskImage: 'radial-gradient(ellipse 62% 72% at 62% 32%, black 25%, transparent 65%)',
                 }}
                 onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
               />
             )}
 
-            {/* Two actors — overlapping, same radial fade */}
+            {/* Two actors — overlapping, same tight radial fade */}
             {multiActor && (
               <div className="relative flex items-center">
                 {actors.slice(0, 2).map((actor, i) => (
@@ -221,12 +204,12 @@ export default function InsightCard({
                       <Image
                         src={`/avatars/${actor.avatarSlug}.png`}
                         alt={actor.name}
-                        width={136}
-                        height={136}
+                        width={140}
+                        height={140}
                         className="object-cover object-top"
                         style={{
-                          maskImage:       'radial-gradient(ellipse 70% 80% at 68% 38%, black 25%, transparent 75%)',
-                          WebkitMaskImage: 'radial-gradient(ellipse 70% 80% at 68% 38%, black 25%, transparent 75%)',
+                          maskImage:       'radial-gradient(ellipse 62% 72% at 62% 32%, black 20%, transparent 62%)',
+                          WebkitMaskImage: 'radial-gradient(ellipse 62% 72% at 62% 32%, black 20%, transparent 62%)',
                         }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                       />
