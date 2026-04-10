@@ -77,10 +77,10 @@ CURRENT_YEAR = 2026
 # allowing career_peak / director_loyalty / supporting industry cards through.
 _MIN_SCORE = 25.0   # Lowered from 40 — lets more Telugu/Kannada candidates through
 
-# Maximum insights returned to the carousel.
-# 100 cards → long scroll session for the user.
-# 7 patterns × limit=200 = 1400 raw candidates; after score filter we expect 100–300 eligible.
-_MAX_INSIGHTS = 100
+# No hard cap — return every eligible card so the carousel is limitless.
+# The score floor (_MIN_SCORE) and per-industry diversity caps are the only
+# constraints; all passing candidates are included and ordered.
+_MAX_INSIGHTS = 10_000  # effectively unlimited
 
 
 # ── Module-level TTL cache ────────────────────────────────────────────────────
@@ -951,17 +951,17 @@ def _pick_diverse(candidates: list) -> list:
     PRIMARY_INDUSTRIES   = {"Tamil", "Telugu", "Malayalam"}
     SECONDARY_INDUSTRIES = {"Kannada"}
     # Per-category diversity caps within each industry pool.
-    # Category diversity in the carousel is also enforced by the round-robin
-    # interleave below — these caps prevent a single category from monopolising
-    # an industry's 33-card quota.
+    # With no hard total cap, these just prevent one category from
+    # monopolising a single industry (e.g. 200 career_peak cards for Tamil).
+    # The carousel round-robin interleave below further ensures variety.
     #
-    # hidden_dominance (type) / supporting (category) cards are capped separately
-    # because Pass 3 keeps only MAX_HIDDEN_DOMINANCE globally.  Selecting many
-    # and then culling them would waste quota slots and leave industries under-filled.
-    MAX_CAT_PER_INDUSTRY      = 10   # default cap per category
-    MAX_SUPPORTING_PER_INDUSTRY = 4  # hidden_dominance cards per industry (matches Pass 3 budget)
+    # hidden_dominance (supporting) cards are capped separately so supporting
+    # actors don't overwhelm the feed; Pass 3 enforces the same budget globally.
+    MAX_CAT_PER_INDUSTRY        = 50   # generous — take almost everything per category
+    MAX_SUPPORTING_PER_INDUSTRY =  6   # hidden_dominance per industry
 
-    per_industry_target = _MAX_INSIGHTS // len(PRIMARY_INDUSTRIES)  # e.g. 33 each
+    # No artificial quota — take everything available from each industry pool.
+    per_industry_target = _MAX_INSIGHTS  # i.e. no per-industry cap either
 
     # Group eligible candidates by industry
     ind_pools: dict = defaultdict(list)
@@ -1017,10 +1017,9 @@ def _pick_diverse(candidates: list) -> list:
 
     # ── Pass 3: supporting cap ────────────────────────────────────────────────
     # Keep at most MAX_HIDDEN_DOMINANCE hidden_dominance cards total so supporting
-    # actors don't crowd the carousel.  Budget = 4 per primary industry (Tamil /
-    # Telugu / Malayalam) = 12.  _fill_from_pool already capped each industry at
-    # MAX_SUPPORTING_PER_INDUSTRY=4, so in practice we expect ≤12 here.
-    MAX_HIDDEN_DOMINANCE = 12
+    # actors don't crowd the feed.  Budget = 6 per primary industry × 3 = 18.
+    # _fill_from_pool already capped each industry at MAX_SUPPORTING_PER_INDUSTRY=6.
+    MAX_HIDDEN_DOMINANCE = 18
     supporting = [i for i in result if i.get("type") == "hidden_dominance"]
     if len(supporting) > MAX_HIDDEN_DOMINANCE:
         supporting.sort(key=lambda x: x["_score"], reverse=True)
