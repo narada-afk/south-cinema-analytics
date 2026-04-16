@@ -9,7 +9,7 @@
  * Actor search boxes reuse the same debounced-search pattern as ComparePicker.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import ActorAvatar from '@/components/ActorAvatar'
 import ConnectionResult from '@/components/ConnectionResult'
 import { searchActors, getActorConnection, type Actor, type ConnectionPath } from '@/lib/api'
@@ -144,6 +144,16 @@ export default function ConnectionFinder({
   const [result, setResult] = useState<ConnectionPath | null>(null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
+  const [hasSearched, setHasSearched] = useState(false)
+
+  // Staged loading messages
+  const LOADING_MSGS = ['Finding paths…', 'Checking collaborators…', 'Building connection…', 'Almost there…']
+  const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
+  useEffect(() => {
+    if (!loading) { setLoadingMsgIdx(0); return }
+    const t = setInterval(() => setLoadingMsgIdx(i => (i + 1) % LOADING_MSGS.length), 900)
+    return () => clearInterval(t)
+  }, [loading])
 
   const canSearch = actor1 !== null && actor2 !== null && actor1.id !== actor2.id
 
@@ -152,6 +162,7 @@ export default function ConnectionFinder({
     setLoading(true)
     setResult(null)
     setError(null)
+    setHasSearched(true)
     try {
       const res = await getActorConnection(actor1!.id, actor2!.id)
       setResult(res)
@@ -222,7 +233,7 @@ export default function ConnectionFinder({
               : 'bg-white/[0.08] text-white/50 border border-white/[0.12] cursor-default'}
           `}
         >
-          {loading ? 'Searching path…' : 'Find Connection'}
+          {loading ? LOADING_MSGS[loadingMsgIdx] : 'Reveal Connection'}
         </button>
 
         {(!actor1 || !actor2) && defaultActors && defaultActors.length >= 2 && (
@@ -238,25 +249,40 @@ export default function ConnectionFinder({
       {/* Error */}
       {error && <p className="mt-4 text-red-400 text-sm text-center">{error}</p>}
 
-      {/* Loading shimmer */}
+      {/* Empty state hint — shown before any search */}
+      {!hasSearched && !loading && (
+        <p className="mt-5 text-center text-white/20 text-xs">
+          Select two actors above, then click Reveal Connection 👀
+        </p>
+      )}
+
+      {/* Loading — dots + staged message */}
       {loading && (
-        <div className="mt-6 flex justify-center gap-2">
-          {[0,1,2,3,4].map(i => (
-            <div
-              key={i}
-              className="w-2 h-2 rounded-full bg-white/30 animate-bounce"
-              style={{ animationDelay: `${i * 0.1}s` }}
-            />
-          ))}
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <div className="flex gap-1.5">
+            {[0,1,2,3,4].map(i => (
+              <div
+                key={i}
+                className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce"
+                style={{ animationDelay: `${i * 0.1}s` }}
+              />
+            ))}
+          </div>
+          <p className="text-white/30 text-xs transition-all duration-300">
+            {LOADING_MSGS[loadingMsgIdx]}
+          </p>
         </div>
       )}
 
       {/* Result — key forces full remount (animation reset) on each new search */}
       {result && !loading && (
-        <ConnectionResult
+        <div
           key={`${result.path[0]?.id}-${result.path.at(-1)?.id}-${result.depth}`}
-          result={result}
-        />
+          style={{ animation: 'fadeInUp 0.4s ease' }}
+        >
+          <style>{`@keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+          <ConnectionResult result={result} />
+        </div>
       )}
     </section>
   )

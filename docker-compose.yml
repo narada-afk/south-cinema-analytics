@@ -4,7 +4,13 @@
 #   2. backend   — the FastAPI application
 #   3. frontend  — the Next.js dashboard
 #
-# To start everything:
+# This file is the default dev shortcut (same as docker-compose.dev.yml).
+# For explicit dev/prod workflows use:
+#   docker compose -f docker-compose.dev.yml up --build
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# To start (dev, quick):
+#   cp .env.example .env   # fill in values once
 #   docker compose up --build
 #
 # To seed demo data (run after containers are up):
@@ -16,19 +22,20 @@ services:
 
   # -------------------------------------------------------------------------
   # PostgreSQL Database
+  # DEV ONLY defaults — override via .env in any shared/staging environment
   # -------------------------------------------------------------------------
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: sca          # Database username
-      POSTGRES_PASSWORD: sca      # Database password
-      POSTGRES_DB: sca            # Database name
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"               # Expose locally for tools like pgAdmin or DBeaver
     volumes:
       - postgres_data:/var/lib/postgresql/data  # Persist data between restarts
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sca"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -42,7 +49,7 @@ services:
     ports:
       - "8000:8000"               # API available at http://localhost:8000
     environment:
-      DATABASE_URL: postgresql://sca:sca@postgres:5432/sca
+      DATABASE_URL: ${DATABASE_URL}
     depends_on:
       postgres:
         condition: service_healthy  # Wait for Postgres to be ready before starting

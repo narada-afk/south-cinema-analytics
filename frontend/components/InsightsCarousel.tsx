@@ -25,7 +25,8 @@ import { useEffect, useRef } from 'react'
 import InsightCard, { type InsightCardData } from '@/components/InsightCard'
 
 // Width of each card in px — ~10 % wider than a 3-col grid cell at 1 200 px
-const CARD_W = 360
+// Width tuned for h-[220px] editorial cards — wider aspect ratio
+const CARD_W = 380
 
 // Scroll speed in px / ms  →  ~50 px/s  →  slow, comfortable for reading
 const SPEED = 0.05
@@ -50,6 +51,10 @@ export default function InsightsCarousel({
     const el = scrollRef.current
     if (!el || items.length === 0) return
 
+    // ── Random start position — different card on every visit ─────────────────
+    const setWidth = el.scrollWidth / 3
+    el.scrollLeft = Math.random() * setWidth
+
     // ── RAF loop ──────────────────────────────────────────────────────────────
     let rafId: number
     let prev: DOMHighResTimeStamp | null = null
@@ -62,7 +67,6 @@ export default function InsightsCarousel({
         el.scrollLeft += SPEED * dt
 
         // Seamless reset: jump back one "set" when we cross the 1/3 boundary
-        const setWidth = el.scrollWidth / 3
         if (el.scrollLeft >= setWidth) {
           el.scrollLeft -= setWidth
         }

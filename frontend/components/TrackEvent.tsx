@@ -1,18 +1,27 @@
 'use client'
 
-import { useEffect } from 'react'
+/**
+ * TrackEvent — fire-and-forget analytics for Server Component pages.
+ *
+ * Usage (in a Server Component):
+ *   <TrackEvent event="actor_viewed" props={{ actor_name: actor.name, actor_id: actor.id }} />
+ *
+ * Renders nothing; fires once on mount.
+ */
 
-interface TrackEventProps {
+import { useEffect } from 'react'
+import { capture } from '@/lib/posthog'
+
+interface Props {
   event: string
   props?: Record<string, unknown>
 }
 
-export default function TrackEvent({ event, props }: TrackEventProps) {
+export default function TrackEvent({ event, props }: Props) {
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).posthog) {
-      ;(window as any).posthog.capture(event, props)
-    }
-  }, [event, props])
+    void capture(event, props)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return null
 }

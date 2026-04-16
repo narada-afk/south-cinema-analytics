@@ -23,10 +23,12 @@ This file is the pattern for the rest of the routers:
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.cache import cache
+from app.core.limiter import limiter
 from app.database import get_db
 from app import schemas
 from app.repositories.actor_repository import actor_repo
@@ -43,7 +45,9 @@ router = APIRouter()
     summary="Search actors by name",
     tags=["Actors"],
 )
+@limiter.limit("60/minute")
 def search_actors(
+    request: Request,
     q: str = Query(..., min_length=1, description="Partial actor name to search for"),
     lead_only: bool = Query(False, description="If true, return only lead/primary actors"),
     db: Session = Depends(get_db),
@@ -75,7 +79,9 @@ def search_actors(
     summary="List all actors",
     tags=["Actors"],
 )
+@limiter.limit("50/minute")
 def list_actors(
+    request: Request,
     primary_only: bool = Query(False, description="If true, return only primary actors"),
     gender: Optional[str] = Query(
         None, description="Filter by gender: 'M' (lead actors) or 'F' (lead actresses)"
@@ -116,12 +122,17 @@ def get_actor_profile(actor_id: int, db: Session = Depends(get_db)):
 
     Run `python -m data_pipeline.build_analytics_tables` if `film_count` is 0.
     """
+    cache_key = f"actor:{actor_id}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     result = actor_repo.get_with_stats(db, actor_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Actor not found")
 
     actor, stats = result
-    return schemas.ActorProfile(
+    profile = schemas.ActorProfile(
         id=actor.id,
         name=actor.name,
         industry=actor.industry,
@@ -130,6 +141,8 @@ def get_actor_profile(actor_id: int, db: Session = Depends(get_db)):
         last_film_year=stats.last_film_year if stats else None,
         avg_runtime=round(stats.avg_runtime, 1) if stats and stats.avg_runtime else None,
     )
+    cache.set(cache_key, profile.model_dump())
+    return profile
 
 
 # ── Filmography ───────────────────────────────────────────────────────────────
@@ -337,7 +350,9 @@ def get_shared_films(
     summary="Side-by-side actor comparison",
     tags=["Compare"],
 )
+@limiter.limit("30/minute")
 def compare_actors(
+    request: Request,
     actor1: str = Query(..., description="Full name of the first actor"),
     actor2: str = Query(..., description="Full name of the second actor"),
     db: Session = Depends(get_db),
@@ -349,6 +364,11 @@ def compare_actors(
     Returns HTTP 404 if either actor is not found, or if the analytics tables
     have not been built yet (`python -m data_pipeline.build_analytics_tables`).
     """
+    cache_key = f"compare:{actor1.lower()}:{actor2.lower()}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     result1 = actor_repo.get_with_stats_by_name(db, actor1)
     if not result1:
         raise HTTPException(
@@ -366,7 +386,7 @@ def compare_actors(
     a1, s1 = result1
     a2, s2 = result2
 
-    return schemas.CompareResponse(
+    response = schemas.CompareResponse(
         actor1=schemas.ActorCompareStats(
             name=a1.name,
             films=s1.film_count,
@@ -382,3 +402,5 @@ def compare_actors(
             last_film=s2.last_film_year,
         ),
     )
+    cache.set(cache_key, response.model_dump())
+    return response

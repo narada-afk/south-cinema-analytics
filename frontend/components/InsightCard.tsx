@@ -1,8 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import ActorAvatar from './ActorAvatar'
 
 export interface InsightCardData {
   emoji: string
@@ -15,31 +15,83 @@ export interface InsightCardData {
   href?: string
 }
 
+// Vivid single-tone card backgrounds
 const CARD_BG: Record<InsightCardData['gradient'], string> = {
-  red:    '#130507',
-  purple: '#0b0613',
-  orange: '#130904',
-  blue:   '#030f19',
-  green:  '#031308',
-  amber:  '#130b02',
+  red:    '#9b1c1c',
+  purple: '#6b21a8',
+  orange: '#9a3412',
+  blue:   '#1e3a8a',
+  green:  '#14532d',
+  amber:  '#92400e',
 }
 
+// Layered background: base + radial highlight top-left + darker edge bottom-right
+// Creates the appearance of interior light source on a vivid field
+const CARD_GRADIENT: Record<InsightCardData['gradient'], string> = {
+  red:    'radial-gradient(ellipse 80% 60% at 15% 20%, rgba(255,100,100,0.25) 0%, transparent 55%), radial-gradient(ellipse 60% 80% at 90% 90%, rgba(80,0,0,0.45) 0%, transparent 60%), #9b1c1c',
+  purple: 'radial-gradient(ellipse 80% 60% at 15% 20%, rgba(210,140,255,0.25) 0%, transparent 55%), radial-gradient(ellipse 60% 80% at 90% 90%, rgba(40,0,80,0.45) 0%, transparent 60%), #6b21a8',
+  orange: 'radial-gradient(ellipse 80% 60% at 15% 20%, rgba(255,160,80,0.25) 0%, transparent 55%),  radial-gradient(ellipse 60% 80% at 90% 90%, rgba(80,20,0,0.45) 0%, transparent 60%),  #9a3412',
+  blue:   'radial-gradient(ellipse 80% 60% at 15% 20%, rgba(100,160,255,0.25) 0%, transparent 55%), radial-gradient(ellipse 60% 80% at 90% 90%, rgba(0,10,60,0.45) 0%, transparent 60%),  #1e3a8a',
+  green:  'radial-gradient(ellipse 80% 60% at 15% 20%, rgba(80,220,120,0.22) 0%, transparent 55%),  radial-gradient(ellipse 60% 80% at 90% 90%, rgba(0,40,10,0.45) 0%, transparent 60%),  #14532d',
+  amber:  'radial-gradient(ellipse 80% 60% at 15% 20%, rgba(255,210,80,0.25) 0%, transparent 55%),  radial-gradient(ellipse 60% 80% at 90% 90%, rgba(60,20,0,0.45) 0%, transparent 60%),  #92400e',
+}
+
+// Light accent tints — readable on bright backgrounds
 const ACCENT: Record<InsightCardData['gradient'], string> = {
-  red:    '#f87171',
-  purple: '#c084fc',
-  orange: '#fb923c',
-  blue:   '#60a5fa',
-  green:  '#4ade80',
-  amber:  '#fbbf24',
+  red:    '#fca5a5',
+  purple: '#d8b4fe',
+  orange: '#fdba74',
+  blue:   '#93c5fd',
+  green:  '#86efac',
+  amber:  '#fcd34d',
 }
 
-const GLOW: Record<InsightCardData['gradient'], string> = {
-  red:    'rgba(239,68,68,0.18)',
-  purple: 'rgba(168,85,247,0.18)',
-  orange: 'rgba(249,115,22,0.18)',
-  blue:   'rgba(59,130,246,0.18)',
-  green:  'rgba(34,197,94,0.18)',
-  amber:  'rgba(251,191,36,0.18)',
+// Stat text-shadow glow — soft halo matching the accent
+const STAT_GLOW: Record<InsightCardData['gradient'], string> = {
+  red:    '0 0 24px rgba(252,165,165,0.55)',
+  purple: '0 0 24px rgba(216,180,254,0.55)',
+  orange: '0 0 24px rgba(253,186,116,0.55)',
+  blue:   '0 0 24px rgba(147,197,253,0.55)',
+  green:  '0 0 24px rgba(134,239,172,0.55)',
+  amber:  '0 0 24px rgba(252,211,77,0.55)',
+}
+
+// Resting box-shadow — subtle depth before hover
+const CARD_SHADOW: Record<InsightCardData['gradient'], string> = {
+  red:    '0 4px 20px rgba(155,28,28,0.4)',
+  purple: '0 4px 20px rgba(107,33,168,0.4)',
+  orange: '0 4px 20px rgba(154,52,18,0.4)',
+  blue:   '0 4px 20px rgba(30,58,138,0.4)',
+  green:  '0 4px 20px rgba(20,83,45,0.4)',
+  amber:  '0 4px 20px rgba(146,64,14,0.4)',
+}
+
+// Hover shadow — stronger lifted glow
+const HOVER_SHADOW: Record<InsightCardData['gradient'], string> = {
+  red:    '0 -2px 0 rgba(252,165,165,0.15), 0 0 48px rgba(220,38,38,0.65),  0 12px 32px rgba(0,0,0,0.5)',
+  purple: '0 -2px 0 rgba(216,180,254,0.15), 0 0 48px rgba(147,51,234,0.65), 0 12px 32px rgba(0,0,0,0.5)',
+  orange: '0 -2px 0 rgba(253,186,116,0.15), 0 0 48px rgba(234,88,12,0.65),  0 12px 32px rgba(0,0,0,0.5)',
+  blue:   '0 -2px 0 rgba(147,197,253,0.15), 0 0 48px rgba(37,99,235,0.65),  0 12px 32px rgba(0,0,0,0.5)',
+  green:  '0 -2px 0 rgba(134,239,172,0.15), 0 0 48px rgba(22,163,74,0.65),  0 12px 32px rgba(0,0,0,0.5)',
+  amber:  '0 -2px 0 rgba(252,211,77,0.15),  0 0 48px rgba(217,119,6,0.65),  0 12px 32px rgba(0,0,0,0.5)',
+}
+
+/**
+ * Split a stat string into a dominant numeral + optional unit label.
+ *
+ * Examples
+ *   "14 films together"  →  { main: "14",        unit: "films together" }
+ *   "4 industries"       →  { main: "4",          unit: "industries"     }
+ *   "2005–2010"          →  { main: "2005–2010",  unit: null             }
+ *   42                   →  { main: "42",          unit: null             }
+ */
+function splitStat(stat: string | number): { main: string; unit: string | null } {
+  const s = String(stat)
+  if (/^\d{4}[–\-]\d{4}$/.test(s)) return { main: s, unit: null }
+  if (/^\d+$/.test(s)) return { main: s, unit: null }
+  const spaceIdx = s.indexOf(' ')
+  if (spaceIdx !== -1) return { main: s.slice(0, spaceIdx), unit: s.slice(spaceIdx + 1) }
+  return { main: s, unit: null }
 }
 
 export default function InsightCard({
@@ -52,9 +104,27 @@ export default function InsightCard({
   gradient,
   href = '#',
 }: InsightCardData) {
-  const accentColor = ACCENT[gradient]
-  const bgColor     = CARD_BG[gradient]
-  const glowColor   = GLOW[gradient]
+  const accentColor  = ACCENT[gradient]
+  const bgColor      = CARD_BG[gradient]
+  const bgGradient   = CARD_GRADIENT[gradient]
+  const statGlow     = STAT_GLOW[gradient]
+  const cardShadow   = CARD_SHADOW[gradient]
+  const hoverShadow  = HOVER_SHADOW[gradient]
+
+  const [copied, setCopied] = useState(false)
+  const [hovered, setHovered] = useState(false)
+
+  const { main: statMain, unit: statUnit } = splitStat(stat)
+
+  function handleShare(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    const url = typeof window !== 'undefined' ? `${window.location.origin}${href}` : href
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1600)
+    }).catch(() => {})
+  }
 
   const singleActor = actors.length === 1
   const multiActor  = actors.length >= 2
@@ -62,120 +132,146 @@ export default function InsightCard({
   return (
     <Link href={href} className="block h-full">
       <div
-        className="relative rounded-2xl overflow-hidden h-[168px] flex cursor-pointer
-                   hover:scale-[1.02] hover:brightness-110 transition-all duration-200
-                   border border-white/5"
-        style={{ background: bgColor }}
+        className="group relative rounded-2xl h-[220px] flex cursor-pointer
+                   border border-white/8 overflow-hidden"
+        style={{
+          background:  bgGradient,
+          boxShadow:   hovered ? hoverShadow : cardShadow,
+          transform:   hovered ? 'translateY(-3px) scale(1.015)' : 'translateY(0) scale(1)',
+          transition:  'transform 220ms ease, box-shadow 220ms ease',
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
       >
-        {/* Left radial glow — colour bleed from the accent */}
+
+        {/* Top-edge accent line — thin colour flash, adds premium feel */}
         <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: `radial-gradient(ellipse 90% 90% at 0% 50%, ${glowColor}, transparent 70%)`,
-          }}
+          className="absolute top-0 left-0 right-0 h-[1.5px] z-20 rounded-t-2xl"
+          style={{ background: `linear-gradient(to right, transparent 5%, ${accentColor}55 40%, ${accentColor}33 70%, transparent 95%)` }}
         />
 
-        {/* ── LEFT: text content ───────────────────────────── */}
-        <div className="relative z-10 flex flex-col justify-between p-5 flex-1 min-w-0 pr-2">
+        {/* Share button — appears on hover */}
+        <button
+          onClick={handleShare}
+          className="absolute top-3 right-3 z-20 w-7 h-7 rounded-full flex items-center justify-center
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)' }}
+          title={copied ? 'Copied!' : 'Share'}
+          aria-label="Share"
+        >
+          {copied ? (
+            <span className="text-[10px] text-green-400 font-bold">✓</span>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              style={{ color: 'rgba(255,255,255,0.6)' }}>
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          )}
+        </button>
 
-          {/* Label */}
+        {/* ── LEFT: text content ──────────────────────────────── */}
+        <div
+          className="relative z-10 flex flex-col justify-between p-6 pr-4 flex-1 min-w-0"
+          style={{ maxWidth: '60%' }}
+        >
+
+          {/* Row 1 — label tag */}
           <span
-            className="text-[10px] font-bold uppercase tracking-widest"
-            style={{ color: accentColor }}
+            className="text-[10px] font-bold uppercase tracking-widest leading-none"
+            style={{ color: 'rgba(255,255,255,0.75)' }}
           >
-            {emoji}&nbsp;&nbsp;{label}
+            {label}
           </span>
 
-          {/* Big stat — primary visual focus */}
-          <div className="text-[2.75rem] font-black text-white leading-none tracking-tight">
-            {stat}
-          </div>
-
-          {/* Headline + subtext */}
-          <div className="min-w-0">
-            <p className="text-[11px] text-white/60 leading-snug line-clamp-2">
-              {headline}
-            </p>
-            {subtext && (
-              <p className="text-[10px] mt-0.5" style={{ color: accentColor + '99' }}>
-                {subtext}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* ── RIGHT: actor portrait(s) ─────────────────────── */}
-        {actors.length > 0 && (
-          <div className="relative flex-shrink-0 flex items-center self-stretch">
-
-            {/* Single actor — large portrait bleeding off bottom-right, no circle */}
-            {singleActor && (
-              <div className="relative self-end mb-[-24px] mr-[-20px]">
-                {/* Glow halo behind portrait */}
-                <div
-                  className="absolute inset-0 blur-2xl scale-75"
-                  style={{ background: glowColor }}
-                />
-                {actors[0].avatarSlug ? (
-                  <Image
-                    src={`/avatars/${actors[0].avatarSlug}.png`}
-                    alt={actors[0].name}
-                    width={160}
-                    height={160}
-                    className="relative object-cover object-top"
-                    style={{
-                      maskImage: 'radial-gradient(ellipse 80% 85% at 50% 45%, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%)',
-                      WebkitMaskImage: 'radial-gradient(ellipse 80% 85% at 50% 45%, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%)',
-                      filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))',
-                    }}
-                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                  />
-                ) : (
-                  <ActorAvatar name={actors[0].name} size={150} />
-                )}
+          {/* Row 2 — Stat: dominant numeral with glow + accent unit */}
+          <div>
+            <div
+              className="text-[3rem] font-black leading-none tracking-tight"
+              style={{
+                color:      '#ffffff',
+                textShadow: statGlow,
+              }}
+            >
+              {statMain}
+            </div>
+            {statUnit && (
+              <div
+                className="text-[12px] font-semibold mt-[5px] leading-none tracking-wide"
+                style={{ color: accentColor }}
+              >
+                {statUnit}
               </div>
             )}
+          </div>
 
-            {/* Two actors — overlapping portraits, no circle */}
+          {/* Row 3 — One-liner headline */}
+          <p className="text-[11px] text-white/85 leading-snug line-clamp-2 min-w-0">
+            {headline}
+          </p>
+
+        </div>
+
+        {/* ── RIGHT: actor portrait ────────────────────────────── */}
+        {actors.length > 0 && (
+          <div className="absolute bottom-0 right-0 pointer-events-none z-[2]">
+
+            {/* Left-edge fade — blends portrait into the text column */}
+            <div
+              className="absolute inset-y-0 left-0 w-24 z-10"
+              style={{ background: `linear-gradient(to right, ${bgColor} 0%, transparent 100%)` }}
+            />
+
+            {/* Single actor — slight zoom on hover for cinematic presence */}
+            {singleActor && actors[0].avatarSlug && (
+              <Image
+                src={`/avatars/${actors[0].avatarSlug}.png`}
+                alt={actors[0].name}
+                width={220}
+                height={220}
+                className="object-cover object-top"
+                style={{
+                  transform:  hovered ? 'scale(1.07)' : 'scale(1.0)',
+                  transition: 'transform 280ms ease',
+                  transformOrigin: 'center bottom',
+                }}
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+              />
+            )}
+
+            {/* Two actors — overlapping, zoom on hover */}
             {multiActor && (
-              <div className="relative flex items-end self-end mb-[-24px] mr-[-16px]">
+              <div className="relative flex items-center">
                 {actors.slice(0, 2).map((actor, i) => (
-                  <div
-                    key={actor.name}
-                    className="relative"
-                    style={{
-                      marginLeft: i === 0 ? 0 : -28,
-                      zIndex: i === 0 ? 2 : 1,
-                    }}
-                  >
+                  actor.avatarSlug ? (
                     <div
-                      className="absolute inset-0 blur-xl scale-75"
-                      style={{ background: glowColor, opacity: 0.5 }}
-                    />
-                    {actor.avatarSlug ? (
+                      key={actor.name}
+                      className="relative"
+                      style={{ marginLeft: i === 0 ? 0 : -28, zIndex: i === 0 ? 2 : 1 }}
+                    >
                       <Image
                         src={`/avatars/${actor.avatarSlug}.png`}
                         alt={actor.name}
-                        width={110}
-                        height={110}
-                        className="relative object-cover object-top"
+                        width={150}
+                        height={150}
+                        className="object-cover object-top"
                         style={{
-                          maskImage: 'radial-gradient(ellipse 80% 85% at 50% 45%, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
-                          WebkitMaskImage: 'radial-gradient(ellipse 80% 85% at 50% 45%, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
-                          filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.6))',
+                          transform:  hovered ? 'scale(1.07)' : 'scale(1.0)',
+                          transition: 'transform 280ms ease',
+                          transformOrigin: 'center bottom',
                         }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                       />
-                    ) : (
-                      <ActorAvatar name={actor.name} size={100} />
-                    )}
-                  </div>
+                    </div>
+                  ) : null
                 ))}
               </div>
             )}
 
           </div>
         )}
+
       </div>
     </Link>
   )

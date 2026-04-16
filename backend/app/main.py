@@ -20,15 +20,37 @@ Run with:
   uvicorn app.main:app --reload
 """
 
+import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 
 from .core.config import settings
+from .core.limiter import limiter
+from .core.logging import configure_logging
 from .database import SessionLocal
 from .services.graph_service import graph_service
-from .routers import actors, analytics, stats, health, data_health, trust
+from .routers import actors, analytics, stats, health, data_health, admin, trust
+
+configure_logging()
+logger = logging.getLogger(__name__)
+
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        traces_sample_rate=0.0,   # disable performance tracing — error capture only
+        send_default_pii=False,
+    )
+    logger.info("Sentry error monitoring enabled")
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
@@ -49,7 +71,7 @@ async def lifespan(app: FastAPI):
         # DB may be empty or schema not yet applied (e.g. CI environment).
         # Log and continue — the app will still serve /health; graph-dependent
         # endpoints will return empty results until the graph is populated.
-        print(f"[startup] graph build skipped — DB may be empty or unavailable: {e}")
+        logger.warning("graph build skipped — DB may be empty or unavailable: %s", e)
     finally:
         db.close()
     yield
@@ -67,6 +89,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"Rate limit exceeded. {exc.detail}"},
+    )
+
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
@@ -78,19 +109,27 @@ app.add_middleware(
 )
 
 
-# ── Cache-Control headers ─────────────────────────────────────────────────────
-# Add Cache-Control: public, max-age=300 to all safe GET responses.
-# This lets Next.js's fetch data-cache and browser caches avoid redundant
-# backend round-trips for mostly-static analytics/actor data.
-# Endpoints that serve truly volatile data can override this individually.
+# ── Request logging ───────────────────────────────────────────────────────────
+
+_req_logger = logging.getLogger("api.request")
 
 @app.middleware("http")
-async def add_cache_control(request: Request, call_next):
+async def log_requests(request: Request, call_next):
+    # Version check is a free string compare on the hot path;
+    # rebuild only happens when GRAPH_VERSION env var has changed.
+    graph_service.ensure_current()
+    start = time.monotonic()
     response: Response = await call_next(request)
+    ms = (time.monotonic() - start) * 1000
+    _req_logger.info("%s %s %d %.0fms", request.method, request.url.path, response.status_code, ms)
+
+    # ── Cache-Control ─────────────────────────────────────────────────────────
+    # Add Cache-Control headers to all successful GET responses so Next.js's
+    # data-cache and browsers avoid redundant backend round-trips.
     if request.method == "GET" and response.status_code == 200:
-        # Insights change slowly; everything else changes even less often.
         ttl = 60 if "/analytics/insights" in request.url.path else 300
         response.headers["Cache-Control"] = f"public, max-age={ttl}, stale-while-revalidate=60"
+
     return response
 
 
@@ -101,4 +140,5 @@ app.include_router(actors.router)
 app.include_router(analytics.router)
 app.include_router(stats.router)
 app.include_router(data_health.router)
+app.include_router(admin.router)
 app.include_router(trust.router)

@@ -26,6 +26,8 @@ Usage
 
 from __future__ import annotations
 
+import logging
+import threading
 import time
 from collections import defaultdict, deque
 from typing import Any, Optional
@@ -34,6 +36,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.database import SessionLocal
+
+logger = logging.getLogger(__name__)
 
 
 # ── Simple in-memory TTL cache ────────────────────────────────────────────────
@@ -94,6 +99,8 @@ class GraphService:
         self._actor_names:   dict[int, str]                        = {}
         self._ready: bool = False
         self._cache = _Cache(maxsize=settings.GRAPH_CACHE_MAXSIZE)
+        self._built_version: str | None = None   # version active when graph was last built
+        self._rebuild_lock = threading.Lock()    # prevents concurrent version-triggered rebuilds
 
     # ── Build ─────────────────────────────────────────────────────────────────
 
@@ -151,15 +158,13 @@ class GraphService:
         self._actor_names = {r[0]: r[1] for r in name_rows}
 
         self._cache.clear()   # Invalidate stale result cache after rebuild
+        self._built_version = settings.GRAPH_VERSION
         self._ready = True
 
         nodes   = len(self._full_graph)
         edges   = sum(len(v) for v in self._full_graph.values()) // 2
         primary_n = len(self._primary_graph)
-        print(
-            f"[GraphService] Built: {nodes} actors, {edges} edges "
-            f"({primary_n} primary actors in centrality graph)"
-        )
+        logger.info("graph built: %d actors, %d edges (%d primary)", nodes, edges, primary_n)
 
     def rebuild(self, db: Session) -> None:
         """
@@ -167,8 +172,59 @@ class GraphService:
         Call after running `python -m data_pipeline.build_analytics_tables`
         to reflect newly ingested data.
         """
-        print("[GraphService] Rebuilding graph...")
+        logger.info("rebuilding graph...")
         self.build(db)
+
+    def ensure_current(self) -> None:
+        """
+        Called on every request (from middleware) to detect version drift.
+
+        The hot path is a single string comparison — effectively free.
+        A DB session is only opened when a mismatch is detected (rare).
+        A threading.Lock prevents concurrent rebuilds when multiple requests
+        arrive simultaneously during the version gap.
+
+        Workflow to propagate a graph update to all Gunicorn workers:
+          1. Ingest new data.
+          2. Bump GRAPH_VERSION in your .env (e.g. "1" → "2").
+          3. Restart the backend (docker compose up -d backend).
+             Each worker rebuilds at startup and stores the new version.
+          4. If a worker's startup build failed, ensure_current() catches it
+             on the next real request and retries.
+        """
+        if self._built_version == settings.GRAPH_VERSION:
+            return  # hot path — nothing to do
+
+        # Only one thread should rebuild; others wait and then re-check.
+        with self._rebuild_lock:
+            if self._built_version == settings.GRAPH_VERSION:
+                return  # another thread already rebuilt while we waited
+
+            logger.info(
+                "graph version mismatch (built=%s, target=%s) — rebuilding",
+                self._built_version, settings.GRAPH_VERSION,
+            )
+            db = SessionLocal()
+            try:
+                self.build(db)
+            except Exception as exc:
+                logger.error("version-triggered graph rebuild failed: %s", exc)
+            finally:
+                db.close()
+
+    # ── Introspection ─────────────────────────────────────────────────────────
+
+    @property
+    def is_ready(self) -> bool:
+        return self._ready
+
+    @property
+    def node_count(self) -> int:
+        return len(self._full_graph)
+
+    @property
+    def edge_count(self) -> int:
+        return sum(len(v) for v in self._full_graph.values()) // 2
 
     # ── BFS: actor connection finder ──────────────────────────────────────────
 

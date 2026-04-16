@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+
 # Read the database URL from environment variable.
 # Default falls back to a local value for easier development.
 DATABASE_URL = os.getenv(

@@ -1,0 +1,73 @@
+# docker-compose.dev.yml — LOCAL DEVELOPMENT
+#
+# Usage:
+#   cp .env.example .env   # fill in values once
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# Features:
+#   - Source code mounted so backend changes reload without rebuild
+#   - All ports exposed for direct access (API, DB, UI)
+#   - Uvicorn hot reload enabled
+
+version: "3.9"
+
+services:
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"     # Exposed — connect with pgAdmin / DBeaver locally
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"     # Exposed for local inspection (redis-cli)
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: redis://redis:6379/0
+    # Run migrations then start the dev server.
+    # To skip migrations (e.g. existing DB): replace with just the uvicorn line.
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./backend:/app  # Live mount — edit code, reload takes effect immediately
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        API_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: http://backend:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      WATCHPACK_POLLING: "true"   # Required for Next.js HMR on macOS with Docker
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data_dev:
