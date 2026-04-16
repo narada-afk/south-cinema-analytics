@@ -5,8 +5,12 @@ import StarBackground from '@/components/StarBackground'
 import PostHogProvider from '@/components/PostHogProvider'
 
 export const metadata: Metadata = {
-  title: 'South Cinema Analytics',
+  title: 'SouthCineStats',
   description: 'A cinema curiosity engine for South Indian films',
+  icons: {
+    icon: '/narada.png',
+    apple: '/narada.png',
+  },
 }
 
 export default function RootLayout({

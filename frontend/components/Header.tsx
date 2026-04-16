@@ -4,10 +4,10 @@ import Link from 'next/link'
 export default function Header() {
   return (
     <header className="w-full px-6 py-4 max-w-[1200px] mx-auto">
-      <Link href="/" className="inline-flex flex-shrink-0 group" aria-label="Home">
+      <Link href="/" className="inline-flex items-center gap-3 flex-shrink-0 group" aria-label="Home">
         <div
           className="
-            w-[52px] h-[52px] rounded-full overflow-hidden
+            w-[52px] h-[52px] rounded-full overflow-hidden flex-shrink-0
             bg-white/[0.06] border border-white/[0.12]
             transition-all duration-300
             group-hover:scale-105
@@ -17,13 +17,19 @@ export default function Header() {
         >
           <Image
             src="/narada.png"
-            alt="South Cinema Analytics"
+            alt="SouthCineStats"
             width={52}
             height={52}
             className="object-cover w-full h-full scale-110"
             priority
           />
         </div>
+        <span
+          className="text-[15px] font-bold tracking-tight text-white/80 group-hover:text-white transition-colors duration-200"
+          style={{ letterSpacing: '-0.01em' }}
+        >
+          SouthCineStats
+        </span>
       </Link>
     </header>
   )
