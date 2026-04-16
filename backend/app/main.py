@@ -22,7 +22,7 @@ Run with:
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.config import settings
@@ -76,6 +76,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Cache-Control headers ─────────────────────────────────────────────────────
+# Add Cache-Control: public, max-age=300 to all safe GET responses.
+# This lets Next.js's fetch data-cache and browser caches avoid redundant
+# backend round-trips for mostly-static analytics/actor data.
+# Endpoints that serve truly volatile data can override this individually.
+
+@app.middleware("http")
+async def add_cache_control(request: Request, call_next):
+    response: Response = await call_next(request)
+    if request.method == "GET" and response.status_code == 200:
+        # Insights change slowly; everything else changes even less often.
+        ttl = 60 if "/analytics/insights" in request.url.path else 300
+        response.headers["Cache-Control"] = f"public, max-age={ttl}, stale-while-revalidate=60"
+    return response
 
 
 # ── Routers ───────────────────────────────────────────────────────────────────
