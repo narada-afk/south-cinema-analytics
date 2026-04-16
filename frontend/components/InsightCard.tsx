@@ -242,45 +242,36 @@ export default function InsightCard({
               />
             )}
 
-            {/* Two actors — full-height portrait columns, same weight as single portrait */}
+            {/* Two actors — overlapping circular avatars */}
             {multiActor && (
-              <div className="flex items-end" style={{ height: 220 }}>
+              <div className="flex items-end pb-4 pr-4">
                 {actors.slice(0, 2).map((actor, i) => (
                   <div
                     key={actor.name}
-                    className="relative flex-shrink-0 overflow-hidden"
+                    className="relative flex-shrink-0 rounded-full overflow-hidden"
                     style={{
-                      width: 120,
-                      height: 220,
-                      marginLeft: i === 0 ? 0 : -24,
+                      width: 100, height: 100,
+                      marginLeft: i === 0 ? 0 : -28,
                       zIndex: i === 0 ? 2 : 1,
+                      border: `3px solid ${bgColor}`,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.55)',
+                      transform: hovered ? 'scale(1.06)' : 'scale(1)',
+                      transition: 'transform 280ms ease',
                     }}
                   >
-                    {/* Left-edge fade on first image to blend into text */}
-                    {i === 0 && (
-                      <div
-                        className="absolute inset-y-0 left-0 w-20 z-10 pointer-events-none"
-                        style={{ background: `linear-gradient(to right, ${bgColor} 0%, ${bgColor}00 100%)` }}
-                      />
-                    )}
                     {actor.avatarSlug ? (
                       <Image
                         src={`/avatars/${actor.avatarSlug}.png`}
                         alt={actor.name}
-                        width={120}
-                        height={220}
+                        width={100}
+                        height={100}
                         className="object-cover object-top w-full h-full"
-                        style={{
-                          transform:  hovered ? 'scale(1.07)' : 'scale(1.0)',
-                          transition: 'transform 280ms ease',
-                          transformOrigin: 'center bottom',
-                        }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                       />
                     ) : (
                       <div
-                        className="w-full h-full flex items-center justify-center text-2xl font-bold text-white/60"
-                        style={{ background: 'rgba(255,255,255,0.06)' }}
+                        className="w-full h-full flex items-center justify-center text-lg font-bold text-white/80"
+                        style={{ background: 'rgba(255,255,255,0.12)' }}
                       >
                         {actor.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
