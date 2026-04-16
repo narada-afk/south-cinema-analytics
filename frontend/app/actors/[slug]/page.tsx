@@ -13,6 +13,7 @@ import {
   getActorMovies,
   getActorCollaborators,
   getActorLeadCollaborators,
+  getActorHeroineCollaborators,
   getActorDirectors,
   getActorBlockbusters,
   getActors,
@@ -60,11 +61,12 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
   // Fetch all data in parallel — individual failures are caught gracefully.
   // We fetch the full actor list once and derive the female subset client-side,
   // saving one redundant backend call (the /actors?gender=F endpoint).
-  const [actor, movies, collaborators, leadCollaborators, directors, blockbusters, allActors] = await Promise.all([
+  const [actor, movies, collaborators, leadCollaborators, heroineCollaborators, directors, blockbusters, allActors] = await Promise.all([
     getActor(id).catch(() => null),
     getActorMovies(id).catch(() => []),
     getActorCollaborators(id).catch(() => []),
     getActorLeadCollaborators(id).catch(() => []),
+    getActorHeroineCollaborators(id).catch(() => []),
     getActorDirectors(id).catch(() => []),
     getActorBlockbusters(id).catch(() => []),
     getActors().catch(() => []),
@@ -128,6 +130,7 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
           <CollaborationsSection
             collaborators={collaborators}
             leadCollaborators={leadCollaborators}
+            heroineCollaborators={heroineCollaborators}
             directors={directors}
             blockbusters={blockbusters}
             movies={movies}

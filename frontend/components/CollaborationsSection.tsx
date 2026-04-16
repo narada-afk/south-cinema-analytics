@@ -12,6 +12,8 @@ import type { Collaborator, DirectorCollab, Actor, ActorMovie, Blockbuster } fro
 interface CollaborationsSectionProps {
   collaborators: Collaborator[]
   leadCollaborators: Collaborator[]
+  /** Heroines identified via TMDB billing_order ≤ 4 (more accurate than leadCollaborators) */
+  heroineCollaborators: Collaborator[]
   directors: DirectorCollab[]
   blockbusters: Blockbuster[]
   movies: ActorMovie[]
@@ -24,6 +26,7 @@ interface CollaborationsSectionProps {
 export default function CollaborationsSection({
   collaborators,
   leadCollaborators,
+  heroineCollaborators,
   directors,
   blockbusters,
   movies,
@@ -42,42 +45,28 @@ export default function CollaborationsSection({
     }
   }
 
-  // Primary-tier names — used to filter male co-stars (excludes Brahmanandam etc.)
+  // Primary-tier names — used to filter male co-stars on an actress's page
   const primaryNames = new Set(
     allActors
       .filter(a => a.actor_tier === 'primary')
       .map(a => a.name.toLowerCase())
   )
 
-  // Known-tier names — actors with any assigned tier ('primary' | 'network').
-  // Lead actresses in South Indian films are typically tagged 'network' (not 'primary')
-  // because 'primary' skews toward top male stars. Using knownTierNames for the
-  // female co-star filter ensures lead heroines appear while excluding extras (null tier).
-  const knownTierNames = new Set(
-    allActors
-      .filter(a => a.actor_tier !== null && a.actor_tier !== undefined)
-      .map(a => a.name.toLowerCase())
-  )
-
-  // For a male actor → show female lead co-stars ("Lead Actresses")
-  // For a female actor → show male lead co-stars ("Lead Actors")
+  // For a male actor → show heroines from the billing-order endpoint
+  // For a female actor → show male primary-tier co-stars
   const leadLabel = actorGender === 'F' ? '🎬 Lead Actors' : '✨ Lead Actresses'
 
-  // Use ALL collaborators for the actresses section — NOT leadCollaborators.
-  // TMDB marks heroines as role_type='supporting' (billed after the male lead),
-  // so leadCollaborators (primary-role for both) misses most lead actresses.
+  // heroineCollaborators comes from /heroine-collaborators (backend uses billing_order ≤ 4).
+  // This correctly identifies lead actresses regardless of TMDB's role_type tagging,
+  // which marks all heroines as 'supporting' because the male lead is top-billed.
   const actresses = actorGender === 'F'
-    // actress page: show known primary male actors
+    // actress page: show known primary male actors she worked with
     ? collaborators.filter(c => {
         const low = c.actor.toLowerCase()
         return genderMap[low] === 'M' && primaryNames.has(low)
       })
-    // actor page: show female actors who have a known tier (lead or prominent supporting)
-    // knownTierNames (primary | network) catches lead actresses; null-tier extras are excluded
-    : collaborators.filter(c => {
-        const low = c.actor.toLowerCase()
-        return femaleNames.has(low) && knownTierNames.has(low)
-      })
+    // actor page: heroines identified by billing position — already correctly filtered
+    : heroineCollaborators
 
   // Build latest year each director worked with this actor (from movies already fetched)
   const dirLatestYear: Record<string, number> = {}

@@ -171,6 +171,15 @@ export async function getActorLeadCollaborators(id: number | string): Promise<Co
   return apiFetch<Collaborator[]>(`/actors/${id}/lead-collaborators`)
 }
 
+/**
+ * Female co-stars identified as heroines (lead actresses) via TMDB billing_order.
+ * More accurate than leadCollaborators for detecting heroines because TMDB assigns
+ * role_type='supporting' to all heroines (male lead is always top-billed).
+ */
+export async function getActorHeroineCollaborators(id: number | string): Promise<Collaborator[]> {
+  return apiFetch<Collaborator[]>(`/actors/${id}/heroine-collaborators`)
+}
+
 export interface Blockbuster {
   title: string
   release_year: number
