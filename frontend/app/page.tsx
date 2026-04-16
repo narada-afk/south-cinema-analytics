@@ -1,11 +1,13 @@
-// Force dynamic rendering so searchParams (?industry=…) is always fresh
-export const dynamic = 'force-dynamic'
+// NOTE: Do NOT add `export const dynamic = 'force-dynamic'` here.
+// Accessing `searchParams` already makes this page dynamically rendered, but
+// keeping it off lets Next.js Data Cache honour the `revalidate` values in
+// apiFetch — cutting backend hits dramatically (insights cached 60 s, rest 300 s).
 
 import fs from 'fs'
 import path from 'path'
+import dynamic from 'next/dynamic'
 import Header from '@/components/Header'
 import HeroSearch from '@/components/HeroSearch'
-import GraphPreview from '@/components/GraphPreview'
 import InsightsCarousel from '@/components/InsightsCarousel'
 import { type InsightCardData } from '@/components/InsightCard'
 import ConnectionFinder from '@/components/stats/ConnectionFinder'
@@ -13,6 +15,10 @@ import CompareEntry from '@/components/CompareEntry'
 import { getInsights, getActors, getActorCollaborators, getActor, type Insight } from '@/lib/api'
 import type { TrendingChip } from '@/components/HeroSearch'
 import type { NetworkCenter, NetworkNode } from '@/components/GraphPreview'
+
+// GraphPreview is a heavy client component; lazy-load it so it lands in its own
+// chunk and does not block the initial page JS bundle.
+const GraphPreview = dynamic(() => import('@/components/GraphPreview'), { ssr: false })
 
 // ── Gradient palette ──────────────────────────────────────────────────────────
 
@@ -164,10 +170,24 @@ function diversifyInsights(insights: Insight[]): Insight[] {
 
 const AVATARS_DIR = path.join(process.cwd(), 'public', 'avatars')
 
-/** Returns the slug if a matching PNG exists on disk, null otherwise */
+// Read the avatar directory once at module init instead of calling
+// fs.existsSync() per insight card on every request (N→1 disk hit).
+const _existingAvatarSlugs: Set<string> = (() => {
+  try {
+    return new Set(
+      fs.readdirSync(AVATARS_DIR)
+        .filter(f => f.endsWith('.png'))
+        .map(f => f.slice(0, -4))
+    )
+  } catch {
+    return new Set()
+  }
+})()
+
+/** Returns the slug if a matching PNG exists on disk, undefined otherwise */
 function avatarSlugIfExists(name: string): string | undefined {
   const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '')
-  return fs.existsSync(path.join(AVATARS_DIR, `${slug}.png`)) ? slug : undefined
+  return _existingAvatarSlugs.has(slug) ? slug : undefined
 }
 
 // ── Data helpers ──────────────────────────────────────────────────────────────
@@ -175,12 +195,10 @@ function avatarSlugIfExists(name: string): string | undefined {
 async function fetchPageData(industry: string) {
   try {
     const rawInsights = await getInsights(industry)
-    console.log('[homepage] API response insights:', rawInsights.length, 'items')
     if (!rawInsights.length) return { insightCards: FALLBACK_INSIGHT_CARDS }
 
     // Reorder so each industry appears before repeats
     const insights = diversifyInsights(rawInsights)
-    console.log('[homepage] after diversity reorder:', insights.map(i => `${i.type}(${i.industry ?? '?'})`).join(', '))
 
     // No cap — show everything the engine returns, interleaved by type
     const insightCards: InsightCardData[] = insights.map((insight, i) => {
@@ -269,8 +287,6 @@ async function fetchNetworkData(
       getActors(true),
     ])
 
-    console.log('[homepage] API response collaborators for', centerName, ':', collaborators.length)
-
     // Resolve gender from actors list — drives the pronoun in GraphPreview subtitle
     const centerActor = actors.find(a => a.id === centerId)
     const center: NetworkCenter = {
@@ -306,26 +322,30 @@ export default async function HomePage({
 }: {
   searchParams?: { actor?: string }
 }) {
-  // Parse ?actor= override upfront so it can run in the parallel batch below
+  // Parse ?actor= override upfront
   const actorIdOverride = searchParams?.actor ? Number(searchParams.actor) : NaN
+  const hasActorOverride = !Number.isNaN(actorIdOverride)
 
-  // Fetch insights + trending chips + optional actor-override — all in parallel
-  // This eliminates the sequential waterfall that existed for the ?actor= case
   const trendingChips = fetchTrendingChips()
-  const [{ insightCards }, actorOverride] = await Promise.all([
+
+  // Fire all three fetches in parallel:
+  //  • fetchPageData  — insights (cached 60 s)
+  //  • actorOverride  — only when ?actor= is in the URL (rare, cached 300 s)
+  //  • fetchNetworkData — can start immediately when no actor override is present
+  //    (the center is always trendingChips[0] in that case)
+  const [{ insightCards }, actorOverride, baseNetworkData] = await Promise.all([
     fetchPageData('all'),
-    !Number.isNaN(actorIdOverride)
-      ? getActor(actorIdOverride).catch(() => null)
-      : Promise.resolve(null),
+    hasActorOverride ? getActor(actorIdOverride).catch(() => null) : Promise.resolve(null),
+    !hasActorOverride ? fetchNetworkData(trendingChips[0] ?? null) : Promise.resolve(null),
   ])
 
-  // ?actor= URL param overrides the network center (used by Share button on GraphPreview)
-  const networkCenter = actorOverride
-    ? { id: actorOverride.id, name: actorOverride.name }
-    : (trendingChips[0] ?? null)
-
-  // Network data runs after chips resolve so we can pass the correct center actor
-  const networkData = await fetchNetworkData(networkCenter)
+  // If ?actor= was supplied, we now know the override actor and can fetch
+  // its network data (single sequential step only in the rare override path).
+  const networkData = baseNetworkData ?? await fetchNetworkData(
+    actorOverride
+      ? { id: actorOverride.id, name: actorOverride.name }
+      : trendingChips[0] ?? null
+  )
 
   return (
     <>

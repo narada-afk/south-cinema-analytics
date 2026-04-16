@@ -528,9 +528,11 @@ export default function GraphPreview({
   const [hovered, setHovered]                         = useState<'center' | number | null>(null)
   const [expandHovered, setExpandHovered]             = useState<'center' | number | null>(null)
   const [centerImgError, setCenterImgError]           = useState(false)
-  const [localCenter, setLocalCenter]                 = useState<NetworkCenter | null>(null)
-  const [localNodes, setLocalNodes]                   = useState<NetworkNode[]>([])
-  const [localAllNodes, setLocalAllNodes]             = useState<NetworkNode[]>([])
+  // Seed state from SSR prop so the graph renders immediately on first paint
+  // instead of waiting for the mount-time API calls to return.
+  const [localCenter, setLocalCenter]                 = useState<NetworkCenter | null>(networkData?.center ?? null)
+  const [localNodes, setLocalNodes]                   = useState<NetworkNode[]>(networkData?.nodes ?? [])
+  const [localAllNodes, setLocalAllNodes]             = useState<NetworkNode[]>(networkData?.nodes ?? [])
   const [fetchingNetwork, setFetchingNetwork]         = useState(false)
   const [hasChosen, setHasChosen]                     = useState(false)
   const [graphContainerHovered, setGraphContainerHovered] = useState(false)

@@ -19,7 +19,9 @@ import {
   searchActors,
 } from '@/lib/api'
 
-export const dynamic = 'force-dynamic'
+// NOTE: Do NOT add `force-dynamic` here — it disables the Data Cache and causes
+// the backend to be hit on every single request. Accessing `params`/`searchParams`
+// already makes this page dynamic; the fetch cache still works without force-dynamic.
 
 interface PageProps {
   params: { slug: string }
@@ -55,8 +57,10 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
     // If either actor doesn't exist, fall through to normal page rendering
   }
 
-  // Fetch all data in parallel — individual failures are caught gracefully
-  const [actor, movies, collaborators, leadCollaborators, directors, blockbusters, allActors, allFemaleActors] = await Promise.all([
+  // Fetch all data in parallel — individual failures are caught gracefully.
+  // We fetch the full actor list once and derive the female subset client-side,
+  // saving one redundant backend call (the /actors?gender=F endpoint).
+  const [actor, movies, collaborators, leadCollaborators, directors, blockbusters, allActors] = await Promise.all([
     getActor(id).catch(() => null),
     getActorMovies(id).catch(() => []),
     getActorCollaborators(id).catch(() => []),
@@ -64,13 +68,9 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
     getActorDirectors(id).catch(() => []),
     getActorBlockbusters(id).catch(() => []),
     getActors().catch(() => []),
-    getActors(false, 'F').catch(() => []),
   ])
-
-  console.log('[actor page] API response:', actor?.name ?? 'null',
-    '| movies:', movies.length,
-    '| collaborators:', collaborators.length,
-    '| directors:', directors.length)
+  // Derive female actors from the already-fetched full list
+  const allFemaleActors = allActors.filter(a => a.gender === 'F')
 
   if (!actor) notFound()
 
