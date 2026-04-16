@@ -822,18 +822,26 @@ export default function GraphPreview({
                 <span className="text-white/20">· {localAllNodes.length} total</span>
               </p>
             </div>
-            <button
-              onClick={() => setIsExpanded(false)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all"
-              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.60)' }}
-              onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(255,255,255,0.13)'; b.style.color = '#fff' }}
-              onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(255,255,255,0.07)'; b.style.color = 'rgba(255,255,255,0.60)' }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-              </svg>
-              Close
-            </button>
+            <div className="flex items-center gap-3">
+              <ActorPicker
+                onSelect={(actor) => { handleActorSelect(actor) }}
+                loading={fetchingNetwork}
+                defaultSuggestions={suggestions}
+                variant="prominent"
+              />
+              <button
+                onClick={() => setIsExpanded(false)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all flex-shrink-0"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.60)' }}
+                onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(255,255,255,0.13)'; b.style.color = '#fff' }}
+                onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(255,255,255,0.07)'; b.style.color = 'rgba(255,255,255,0.60)' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                </svg>
+                Close
+              </button>
+            </div>
           </div>
 
           {/* Full-screen SVG — uses ALL collaborators */}
