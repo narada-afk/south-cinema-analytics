@@ -83,7 +83,7 @@ function scatterPosExpanded(i: number, kind: NetworkNode['kind']): { x: number; 
 }
 
 function coreR(films: number, isHov: boolean): number {
-  if (isHov) return 3.2
+  if (isHov) return 5.5
   return 1.4 + Math.min(films * 0.04, 1.2)
 }
 
@@ -294,10 +294,12 @@ function ConstellationSVG({
   onCenterClick: () => void
   idPrefix?: string
   fs?: { name: number; detail: number; centerName: number; centerSub: number }
+  centerR?: number
 }) {
   const avatarSlug  = center.name.toLowerCase().replace(/\s+/g, '')
   const isHovCenter = hovered === 'center'
   const p = idPrefix  // shorthand
+  const CR = centerR ?? CENTER_R
 
   return (
     <svg
@@ -339,7 +341,7 @@ function ConstellationSVG({
           <stop offset="100%" stopColor="#07070f" stopOpacity="0.90"/>
         </radialGradient>
         <clipPath id={`${p}gp-centerclip`}>
-          <circle cx={cx} cy={cy} r={CENTER_R - 2}/>
+          <circle cx={cx} cy={cy} r={CR - 2}/>
         </clipPath>
         <filter id={`${p}gp-nglow`} x="-80%" y="-80%" width="260%" height="260%">
           <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b"/>
@@ -438,15 +440,16 @@ function ConstellationSVG({
               filter={`url(#${p}gp-nglow2)`} style={{ transition: 'opacity 0.18s ease' }}/>
             <circle cx={x} cy={y} r={cr} fill={isHov ? '#fff' : col} opacity={isHov ? 1 : 0.80}
               style={{ transition: 'r 0.18s ease, fill 0.18s ease' }}/>
-            <text x={x} y={y - cr - 5} textAnchor="middle" fontSize={fs.name}
-              fontWeight={isHov ? '600' : '400'}
-              fill={isHov ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.32)'}
-              style={{ userSelect: 'none', transition: 'fill 0.18s ease' }}>
-              {node.name.split(' ')[0]}
+            <text x={x} y={y - cr - 5} textAnchor="middle"
+              fontSize={isHov ? fs.name * 1.9 : fs.name}
+              fontWeight={isHov ? '700' : '400'}
+              fill={isHov ? '#ffffff' : 'rgba(255,255,255,0.32)'}
+              style={{ userSelect: 'none', transition: 'fill 0.18s ease, font-size 0.15s ease' }}>
+              {isHov ? node.name : node.name.split(' ')[0]}
             </text>
             {isHov && (
-              <text x={x} y={y + cr + 13} textAnchor="middle" fontSize={fs.detail}
-                fill={col} opacity="0.75" style={{ userSelect: 'none' }}>
+              <text x={x} y={y + cr + 16} textAnchor="middle" fontSize={fs.detail * 1.5}
+                fill={col} opacity="0.85" style={{ userSelect: 'none' }}>
                 {node.kind === 'director' ? 'Dir · ' : ''}{node.films} {node.films === 1 ? 'film' : 'films'}
               </text>
             )}
@@ -464,40 +467,40 @@ function ConstellationSVG({
           <animateTransform attributeName="transform" type="rotate"
             from={`0 ${cx} ${cy}`} to={`360 ${cx} ${cy}`}
             dur="7s" repeatCount="indefinite" calcMode="linear"/>
-          <circle cx={cx} cy={cy} r={CENTER_R + 2}
+          <circle cx={cx} cy={cy} r={CR + 2}
             fill="none" stroke={`url(#${p}gp-ring-grad)`} strokeWidth="2.5"
             filter={`url(#${p}gp-ringblur)`} opacity="0.65">
             <animate attributeName="r"
-              values={`${CENTER_R + 2};${CENTER_R + 2.7};${CENTER_R + 2}`}
+              values={`${CR + 2};${CR + 2.7};${CR + 2}`}
               dur="3.5s" repeatCount="indefinite" calcMode="spline"
               keySplines="0.45 0 0.55 1;0.45 0 0.55 1"/>
           </circle>
         </g>
-        <circle cx={cx} cy={cy} r={CENTER_R} fill="#0d0d15"/>
+        <circle cx={cx} cy={cy} r={CR} fill="#0d0d15"/>
         {!centerImgError ? (
           <image
             href={`/avatars/${avatarSlug}.png`}
-            x={cx - CENTER_R + 2} y={cy - CENTER_R + 2}
-            width={(CENTER_R - 2) * 2} height={(CENTER_R - 2) * 2}
+            x={cx - CR + 2} y={cy - CR + 2}
+            width={(CR - 2) * 2} height={(CR - 2) * 2}
             clipPath={`url(#${p}gp-centerclip)`}
             preserveAspectRatio="xMidYMid slice"
             onError={() => setCenterImgError(true)}
           />
         ) : (
           <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-            fontSize={CENTER_R * 0.48} fontWeight="700"
+            fontSize={CR * 0.48} fontWeight="700"
             fill={CENTER_COLOR} style={{ userSelect: 'none' }}>
             {initials(center.name)}
           </text>
         )}
-        <text x={cx} y={cy + CENTER_R + 17} textAnchor="middle"
+        <text x={cx} y={cy + CR + 17} textAnchor="middle"
           fontSize={fs.centerName} fontWeight="600"
           fill={isHovCenter ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.68)'}
           style={{ userSelect: 'none', transition: 'fill 0.22s ease' }}>
           {center.name.split(' ')[0]}
         </text>
         {isHovCenter && (
-          <text x={cx} y={cy + CENTER_R + 29} textAnchor="middle"
+          <text x={cx} y={cy + CR + 29} textAnchor="middle"
             fontSize={fs.centerSub} fill="rgba(255,255,255,0.35)" style={{ userSelect: 'none' }}>
             tap to explore
           </text>
@@ -778,7 +781,7 @@ export default function GraphPreview({
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
               </svg>
-              Expand
+              See all {nodes.length} connections
             </button>
           )}
         </div>
@@ -843,6 +846,7 @@ export default function GraphPreview({
               onNodeClick={handleNodeClick} onCenterClick={handleCenterClick}
               idPrefix="exp-"
               fs={{ name: 11, detail: 9, centerName: 13, centerSub: 9.5 }}
+              centerR={42}
             />
           </div>
 
