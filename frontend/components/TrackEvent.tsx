@@ -11,6 +11,7 @@
 
 import { useEffect } from 'react'
 import { capture } from '@/lib/posthog'
+import { trackEvent, trackActorView, trackCompare } from '@/lib/analytics'
 
 interface Props {
   event: string
@@ -19,7 +20,21 @@ interface Props {
 
 export default function TrackEvent({ event, props }: Props) {
   useEffect(() => {
+    // PostHog
     void capture(event, props)
+
+    // GA4 — map known event names to typed helpers; fall back to generic trackEvent
+    if (event === 'actor_viewed') {
+      trackActorView(
+        props?.actor_name as string,
+        props?.actor_id   as number | undefined,
+        props?.industry   as string | undefined,
+      )
+    } else if (event === 'compare_used') {
+      trackCompare(props?.actor1 as string, props?.actor2 as string)
+    } else {
+      trackEvent(event, props)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

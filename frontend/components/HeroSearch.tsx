@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ActorAvatar from '@/components/ActorAvatar'
+import { trackSearch } from '@/lib/analytics'
 
 export interface TrendingChip {
   id: number
@@ -64,7 +65,18 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
         const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
         const res    = await fetch(`${apiUrl}/actors/search?q=${encodeURIComponent(query.trim())}`)
         const data: SearchResult[] = await res.json()
-        setResults(data.slice(0, 7))
+        // Prioritise exact match → starts-with → contains
+        const q = query.trim().toLowerCase()
+        const sorted = [...data].sort((a, b) => {
+          const an = a.name.toLowerCase()
+          const bn = b.name.toLowerCase()
+          if (an === q && bn !== q) return -1
+          if (bn === q && an !== q) return 1
+          if (an.startsWith(q) && !bn.startsWith(q)) return -1
+          if (bn.startsWith(q) && !an.startsWith(q)) return 1
+          return 0
+        })
+        setResults(sorted.slice(0, 7))
         setNotFound(data.length === 0)
       } catch {
         setResults([])
@@ -93,6 +105,7 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
   const showDropdown  = focused && dropItems.length > 0
 
   function navigate(name: string) {
+    trackSearch(name)
     setFocused(false)
     setQuery('')
     router.push(`/actors/${toSlug(name)}`)
@@ -131,7 +144,7 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
         style={{
           opacity:    fading ? 0 : 1,
           transition: 'opacity 0.35s ease',
-          minHeight:  '2.6em',        /* exactly 2 lines — no layout shift */
+          minHeight:  '2.6em',
         }}
       >
         {HEADLINES[headlineIdx]}
@@ -207,15 +220,19 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
             {dropItems.map((item, idx) => (
               <button
                 key={item.id}
+                data-testid={`actor-suggestion-${item.id}`}
                 onMouseDown={() => navigate(item.name)}
                 onMouseEnter={() => setActiveIdx(idx)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors duration-100"
                 style={{
                   background: idx === activeIdx ? 'rgba(99,120,255,0.10)' : 'transparent',
+                  position: 'relative',
+                  zIndex: 1,
+                  pointerEvents: 'auto',
                 }}
               >
                 <ActorAvatar name={item.name} size={30} />
-                <span className="text-sm text-white/80">{item.name}</span>
+                <span className="text-sm text-white/80 pointer-events-none">{item.name}</span>
               </button>
             ))}
             <div className="h-2" />

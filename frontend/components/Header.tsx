@@ -56,7 +56,7 @@ export default function Header() {
             >
               <Image
                 src="/narada.png"
-                alt="SouthCineStats"
+                alt="CineScope"
                 width={44}
                 height={44}
                 className="object-cover w-full h-full scale-110"
@@ -72,13 +72,13 @@ export default function Header() {
             <div className="flex items-center gap-[7px]">
               <span className="text-[15px] font-bold tracking-[-0.01em] leading-none select-none">
                 <span className="text-white/88 group-hover:text-white/95 transition-colors duration-200">
-                  SouthCine
+                  Cine
                 </span>
                 <span
                   className="transition-colors duration-200"
                   style={{ color: '#a5b4fc' }}
                 >
-                  Stats
+                  Scope
                 </span>
               </span>
               <span
@@ -98,7 +98,7 @@ export default function Header() {
               className="text-[10px] leading-none select-none tracking-[0.055em]"
               style={{ color: 'rgba(255,255,255,0.30)' }}
             >
-              South Indian Cinema Analytics
+              Deep insights into South Indian Cinema 🎬
             </span>
           </div>
         </Link>

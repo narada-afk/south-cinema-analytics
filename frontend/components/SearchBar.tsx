@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import ActorAvatar from '@/components/ActorAvatar'
 import { capture } from '@/lib/posthog'
+import { trackSearch } from '@/lib/analytics'
 
 interface SearchResult {
   id: number
@@ -34,7 +35,18 @@ export default function SearchBar() {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
         const res    = await fetch(`${apiUrl}/actors/search?q=${encodeURIComponent(query.trim())}`)
         const data: SearchResult[] = await res.json()
-        setResults(data.slice(0, 7))
+        // Prioritise exact match → starts-with → contains
+        const q = query.trim().toLowerCase()
+        const sorted = [...data].sort((a, b) => {
+          const an = a.name.toLowerCase()
+          const bn = b.name.toLowerCase()
+          if (an === q && bn !== q) return -1
+          if (bn === q && an !== q) return 1
+          if (an.startsWith(q) && !bn.startsWith(q)) return -1
+          if (bn.startsWith(q) && !an.startsWith(q)) return 1
+          return 0
+        })
+        setResults(sorted.slice(0, 7))
       } catch {
         setResults([])
       } finally {
@@ -61,6 +73,7 @@ export default function SearchBar() {
 
   function navigate(name: string, source: 'suggestion' | 'submit') {
     void capture('search_performed', { query: name, source })
+    trackSearch(name)
     setFocused(false); setQuery(''); setResults([])
     router.push(`/actors/${toSlug(name)}`)
   }
@@ -134,13 +147,19 @@ export default function SearchBar() {
           {results.map((item, idx) => (
             <button
               key={item.id}
+              data-testid={`actor-suggestion-${item.id}`}
               onMouseDown={() => navigate(item.name, 'suggestion')}
               onMouseEnter={() => setActiveIdx(idx)}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors duration-100"
-              style={{ background: idx === activeIdx ? 'rgba(255,255,255,0.06)' : 'transparent' }}
+              style={{
+                background: idx === activeIdx ? 'rgba(255,255,255,0.06)' : 'transparent',
+                position: 'relative',
+                zIndex: 1,
+                pointerEvents: 'auto',
+              }}
             >
               <ActorAvatar name={item.name} size={24} />
-              <span className="text-xs text-white/75">{item.name}</span>
+              <span className="text-xs text-white/75 pointer-events-none">{item.name}</span>
             </button>
           ))}
           <div className="h-1.5" />

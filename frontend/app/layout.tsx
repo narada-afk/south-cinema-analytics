@@ -1,12 +1,13 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
+import Script from 'next/script'
 import './globals.css'
 import StarBackground from '@/components/StarBackground'
 import PostHogProvider from '@/components/PostHogProvider'
 
 export const metadata: Metadata = {
-  title: 'SouthCineStats',
-  description: 'A cinema curiosity engine for South Indian films',
+  title: 'CineScope',
+  description: 'South Indian cinema intelligence — explore actors, connections and insights',
   icons: {
     icon: '/narada.png',
     apple: '/narada.png',
@@ -18,9 +19,50 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const gaId      = process.env.NEXT_PUBLIC_GA_ID
+  const clarityId = process.env.NEXT_PUBLIC_CLARITY_ID
+
   return (
     <html lang="en">
       <body className="bg-[#0a0a0f] text-white min-h-screen antialiased">
+
+        {/* ── Google Analytics 4 ───────────────────────────────────────
+            Loads after page is interactive so it never blocks rendering.
+            send_page_view:false → we fire page_view manually on every
+            SPA route change from PostHogProvider to avoid double-counts.
+        ── */}
+        {gaId && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${gaId}', { send_page_view: false });
+              `}
+            </Script>
+          </>
+        )}
+
+        {/* ── Microsoft Clarity (session recording + heatmaps) ────────
+            Fully passive — no custom event calls needed.
+        ── */}
+        {clarityId && (
+          <Script id="clarity-init" strategy="afterInteractive">
+            {`
+              (function(c,l,a,r,i,t,y){
+                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+              })(window,document,"clarity","script","${clarityId}");
+            `}
+          </Script>
+        )}
+
         {/* ── Global star background — fixed, z:0, behind content ── */}
         <StarBackground />
 

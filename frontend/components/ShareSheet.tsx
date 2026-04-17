@@ -132,7 +132,7 @@ export default function ShareSheet(props: ShareCardData) {
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
-          title: `${props.name1} vs ${props.name2} · South Cinema Analytics`,
+          title: `${props.name1} vs ${props.name2} · CineScope`,
           text:  shareText,
           url:   pageUrl,
         })
