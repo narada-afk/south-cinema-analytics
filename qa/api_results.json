@@ -1,0 +1,139 @@
+{
+  "total": 26,
+  "passed": 26,
+  "failed": 0,
+  "slow": 0,
+  "avg_ms": 87,
+  "results": [
+    {
+      "name": "GET /health \u2192 200 + status:ok",
+      "status": "pass",
+      "ms": 36.26509400783107
+    },
+    {
+      "name": "GET /health response time < 500 ms",
+      "status": "pass",
+      "ms": 32.978919974993914
+    },
+    {
+      "name": "GET /actors \u2192 200 + non-empty list + valid shape",
+      "status": "pass",
+      "ms": 480.4015920381062
+    },
+    {
+      "name": "GET /actors response time < 2 s",
+      "status": "pass",
+      "ms": 487.55052796332166
+    },
+    {
+      "name": "GET /actors/search?q=Rajinikanth \u2192 finds result",
+      "status": "pass",
+      "ms": 35.030769009608775
+    },
+    {
+      "name": "GET /actors/search?q=mohanlal \u2192 case-insensitive hit",
+      "status": "pass",
+      "ms": 37.793311988934875
+    },
+    {
+      "name": "GET /actors/search?q= \u2192 graceful (200 or 422)",
+      "status": "pass",
+      "ms": 11.699185997713357
+    },
+    {
+      "name": "GET /actors/1 \u2192 valid actor detail",
+      "status": "pass",
+      "ms": 11.713188025169075
+    },
+    {
+      "name": "GET /actors/999999 \u2192 404 Not Found",
+      "status": "pass",
+      "ms": 12.114886019844562
+    },
+    {
+      "name": "GET /actors/1/movies \u2192 non-empty movie list",
+      "status": "pass",
+      "ms": 24.985919997561723
+    },
+    {
+      "name": "GET /actors/1/collaborators \u2192 valid collaborator list",
+      "status": "pass",
+      "ms": 66.81372196180746
+    },
+    {
+      "name": "GET /actors/1/directors \u2192 non-empty",
+      "status": "pass",
+      "ms": 16.242943005636334
+    },
+    {
+      "name": "GET /actors/1/heroine-collaborators \u2192 Rashmika present for Allu Arjun",
+      "status": "pass",
+      "ms": 16.647543001454324
+    },
+    {
+      "name": "GET /actors/1/lead-collaborators \u2192 200 + list",
+      "status": "pass",
+      "ms": 13.578190002590418
+    },
+    {
+      "name": "GET /analytics/insights \u2192 200 + valid insight shape",
+      "status": "pass",
+      "ms": 25.192223023623228
+    },
+    {
+      "name": "Insights: no director_loyalty where actor == director",
+      "status": "pass",
+      "ms": 17.132163979113102
+    },
+    {
+      "name": "GET /analytics/insights?industry= \u2192 works for tamil/telugu/malayalam",
+      "status": "pass",
+      "ms": 113.71042497921735
+    },
+    {
+      "name": "GET /analytics/top-collaborations \u2192 200",
+      "status": "pass",
+      "ms": 26.59540099557489
+    },
+    {
+      "name": "GET /compare?actor1=Allu+Arjun&actor2=Mahesh+Babu \u2192 200 + dict",
+      "status": "pass",
+      "ms": 27.00068400008604
+    },
+    {
+      "name": "GET /compare same actor \u2192 graceful (no 500)",
+      "status": "pass",
+      "ms": 24.840331985615194
+    },
+    {
+      "name": "GET /compare unknown actor \u2192 404 or 422",
+      "status": "pass",
+      "ms": 19.2706219968386
+    },
+    {
+      "name": "GET /actors/1 \u2192 cache-control header present",
+      "status": "pass",
+      "ms": 15.23814001120627
+    },
+    {
+      "name": "GET /analytics/insights \u2192 cache-control max-age=60",
+      "status": "pass",
+      "ms": 22.006490966305137
+    },
+    {
+      "name": "GET /actors/notanid \u2192 404 or 422 (not 500)",
+      "status": "pass",
+      "ms": 9.45743196643889
+    },
+    {
+      "name": "Search with XSS payload \u2192 no crash, no reflection",
+      "status": "pass",
+      "ms": 57.142073987051845
+    },
+    {
+      "name": "No 500 errors on all core routes",
+      "status": "pass",
+      "ms": 615.9022420179099
+    }
+  ]
+}
