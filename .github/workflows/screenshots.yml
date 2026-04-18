@@ -60,7 +60,7 @@ jobs:
           POSTGRES_USER: cinema
           POSTGRES_PASSWORD: cinema
           POSTGRES_DB: cinema_db
-          DATABASE_URL: postgresql://cinema:cinema@localhost:5432/cinema_db
+          DATABASE_URL: postgresql://cinema:cinema@postgres:5432/cinema_db
         run: docker compose up -d --build postgres backend
 
       - name: Wait for backend
