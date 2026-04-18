@@ -167,17 +167,9 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
         {HEADLINES[headlineIdx]}
       </h1>
 
-      {/* Primary tagline */}
+      {/* Stats line */}
       <p
-        className="relative mt-4 text-sm tracking-wide italic"
-        style={{ color: 'rgba(156,163,175,0.85)', zIndex: 1 }}
-      >
-        South Indian Cinema… traced.
-      </p>
-
-      {/* Secondary stats line */}
-      <p
-        className="relative mt-2 text-xs"
+        className="relative mt-4 text-xs"
         style={{ color: 'rgba(255,255,255,0.22)', zIndex: 1 }}
       >
         8,000+ actors · 4 industries · infinite connections
@@ -209,7 +201,7 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
             onChange={e => { setQuery(e.target.value); setNotFound(false); setActiveIdx(-1) }}
             onFocus={() => setFocused(true)}
             onKeyDown={handleKeyDown}
-            placeholder="Search an actor… (e.g. Rajinikanth, Vijay)"
+            placeholder="Search an actor… (e.g. Rajinikanth, Prabhas)"
             disabled={loading}
             autoComplete="off"
             className="w-full pl-12 pr-5 py-4 text-sm bg-white/[0.07] border border-white/[0.12] text-white placeholder-white/25 focus:outline-none disabled:opacity-60 transition-all duration-200"
