@@ -577,8 +577,8 @@ export default function GraphPreview({
     try {
       const [collaborators, leadCollabs, directors] = await Promise.all([
         getActorCollaborators(actor.id),
-        getActorLeadCollaborators(actor.id),
-        getActorDirectors(actor.id),
+        getActorLeadCollaborators(actor.id).catch(() => []),
+        getActorDirectors(actor.id).catch(()  => []),
       ])
       const leadNames  = new Set(leadCollabs.map(l => l.actor.toLowerCase().trim()))
       const dirNameSet = new Set(directors.slice(0, 8).map(d => d.director.toLowerCase().trim()))
