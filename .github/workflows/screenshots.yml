@@ -70,7 +70,10 @@ jobs:
       - name: Seed test actors
         run: |
           # Run the full seed: creates tables + inserts actors, movies, cast entries
-          docker compose exec -T backend python -m app.seed_data
+          # Pass DATABASE_URL explicitly so exec picks up the correct Docker hostname
+          docker compose exec -T \
+            -e DATABASE_URL=postgresql://sca:sca@postgres:5432/sca \
+            backend python -m app.seed_data
 
       # ── 7b. Debug: dump backend logs (always, helps diagnose failures) ────────
       - name: Dump backend logs (debug)
