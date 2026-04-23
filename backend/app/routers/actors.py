@@ -311,6 +311,7 @@ def get_actor_blockbusters(actor_id: int, db: Session = Depends(get_db)):
         FROM movies m
         JOIN actor_movies am ON am.movie_id = m.id
         WHERE am.actor_id = :actor_id
+          AND am.role_type  = 'primary'
           AND m.box_office IS NOT NULL
           AND m.box_office > 0
         ORDER BY m.box_office DESC

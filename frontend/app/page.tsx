@@ -301,6 +301,12 @@ async function fetchNetworkData(
     // Remove directors from collab list so they don't double-count
     const eligibleCollabs = collaborators.filter(c => !dirNames.has(c.actor.toLowerCase().trim()))
 
+    // Restrict to South Indian actors only — actors outside our primary list
+    // (e.g. Bollywood / Hollywood guests) are filtered out from both views.
+    const southIndianCollabs = eligibleCollabs.filter(c =>
+      nameToId.has(c.actor.toLowerCase().trim())
+    )
+
     const directorNodes: NetworkNode[] = directors.slice(0, 8).map(d => ({
       id:    nameToId.get(d.director.toLowerCase().trim()) ?? null,
       name:  d.director,
@@ -308,17 +314,18 @@ async function fetchNetworkData(
       kind:  'director' as const,
     }))
 
-    // Find minimum film threshold so we show ~50 nodes in the compact inline view
+    // Find minimum film threshold so we show ~50 nodes in the compact inline view.
+    // Run against southIndianCollabs so the count is accurate after the SI filter.
     const TARGET = 50
     let threshold = 1
-    for (let t = 1; t <= (eligibleCollabs[0]?.films ?? 1); t++) {
-      if (eligibleCollabs.filter(c => c.films >= t).length <= TARGET) { threshold = t; break }
+    for (let t = 1; t <= (southIndianCollabs[0]?.films ?? 1); t++) {
+      if (southIndianCollabs.filter(c => c.films >= t).length <= TARGET) { threshold = t; break }
     }
 
     // Compact set — threshold-filtered, used for the inline constellation preview
     const nodes: NetworkNode[] = [
       ...directorNodes,
-      ...eligibleCollabs
+      ...southIndianCollabs
         .filter(c => c.films >= threshold)
         .map(c => ({
           id:    nameToId.get(c.actor.toLowerCase().trim()) ?? null,
@@ -328,11 +335,11 @@ async function fetchNetworkData(
         })),
     ]
 
-    // Full set — every collaborator, used in the expanded full-screen view.
-    // Passed separately so "See all N connections" shows the true total from the start.
+    // Full set — every South Indian collaborator, used in the expanded full-screen view.
+    // Passed separately so "See full network · N" shows the true South-Indian-only total.
     const allNodes: NetworkNode[] = [
       ...directorNodes,
-      ...eligibleCollabs.map(c => ({
+      ...southIndianCollabs.map(c => ({
         id:    nameToId.get(c.actor.toLowerCase().trim()) ?? null,
         name:  c.actor,
         films: c.films,

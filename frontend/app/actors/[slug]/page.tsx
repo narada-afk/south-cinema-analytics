@@ -1,3 +1,5 @@
+import { existsSync } from 'fs'
+import path from 'path'
 import { notFound, redirect } from 'next/navigation'
 import TrackEvent from '@/components/TrackEvent'
 import Header from '@/components/Header'
@@ -73,6 +75,17 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
   // Derive female actors from the already-fetched full list
   const allFemaleActors = allActors.filter(a => a.gender === 'F')
 
+  // Sort heroine collaborators: films DESC, then avatar-existence as tiebreaker so
+  // well-known actresses (who have local avatar PNGs) surface ahead of unknowns
+  // with the same collaboration count.
+  const avatarDir = path.join(process.cwd(), 'public', 'avatars')
+  const sortedHeroineCollaborators = [...heroineCollaborators].sort((a, b) => {
+    if (b.films !== a.films) return b.films - a.films
+    const hasA = existsSync(path.join(avatarDir, `${a.actor.toLowerCase().replace(/\s+/g, '')}.png`)) ? 1 : 0
+    const hasB = existsSync(path.join(avatarDir, `${b.actor.toLowerCase().replace(/\s+/g, '')}.png`)) ? 1 : 0
+    return hasB - hasA
+  })
+
   if (!actor) notFound()
 
   const numericId = Number(id)
@@ -129,7 +142,7 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
           <CollaborationsSection
             collaborators={collaborators}
             leadCollaborators={leadCollaborators}
-            heroineCollaborators={heroineCollaborators}
+            heroineCollaborators={sortedHeroineCollaborators}
             directors={directors}
             blockbusters={blockbusters}
             movies={movies}
