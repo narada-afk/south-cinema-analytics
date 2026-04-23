@@ -72,14 +72,29 @@ function scatterPos(i: number, kind: NetworkNode['kind']): { x: number; y: numbe
 
 function scatterPosExpanded(i: number, kind: NetworkNode['kind']): { x: number; y: number } {
   const angle = sr(i * 37 + 11) * 2 * Math.PI
-  const [rxMin, rxMax] = kind === 'lead'      ? [130, 610] : kind === 'director' ? [160, 650] : [190, 710]
-  const [ryMin, ryMax] = kind === 'lead'      ? [75,  350] : kind === 'director' ? [90,  380]  : [110, 420]
-  const rx = rxMin + sr(i * 23 + 7)  * (rxMax - rxMin)
-  const ry = ryMin + sr(i * 41 + 13) * (ryMax - ryMin)
-  const jx = (sr(i * 53 + 17) - 0.5) * 80
-  const jy = (sr(i * 61 + 19) - 0.5) * 50
-  const x = Math.max(80, Math.min(EXP_W - 80, EXP_CX + rx * Math.cos(angle) + jx))
-  const y = Math.max(40, Math.min(EXP_H - 40, EXP_CY + ry * Math.sin(angle) + jy))
+  const cosA  = Math.cos(angle)
+  const sinA  = Math.sin(angle)
+
+  // Compute the maximum radius at this angle that stays within the padded canvas.
+  // Using the rectangle-aware formula so nodes fill all four corners, not just an oval.
+  const PAD_X = 110, PAD_Y = 65
+  const rMax = Math.min(
+    (EXP_W / 2 - PAD_X) / Math.max(Math.abs(cosA), 0.07),
+    (EXP_H / 2 - PAD_Y) / Math.max(Math.abs(sinA), 0.07),
+  )
+
+  // Minimum radius — keep a clear zone around the centre star
+  const rMin = kind === 'lead' ? 130 : kind === 'director' ? 150 : 160
+
+  // Place the node anywhere between rMin and rMax
+  const r = rMin + sr(i * 23 + 7) * Math.max(0, rMax - rMin)
+
+  // Small jitter to break the spoke pattern
+  const jx = (sr(i * 53 + 17) - 0.5) * 90
+  const jy = (sr(i * 61 + 19) - 0.5) * 55
+
+  const x = Math.max(PAD_X, Math.min(EXP_W - PAD_X, EXP_CX + r * cosA + jx))
+  const y = Math.max(PAD_Y, Math.min(EXP_H - PAD_Y, EXP_CY + r * sinA + jy))
   return { x, y }
 }
 
