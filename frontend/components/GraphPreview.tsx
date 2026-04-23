@@ -448,17 +448,14 @@ function ConstellationSVG({
               filter={`url(#${p}gp-nglow2)`} style={{ transition: 'opacity 0.18s ease' }}/>
             <circle cx={x} cy={y} r={cr} fill={isHov ? '#fff' : col} opacity={isHov ? 1 : 0.80}
               style={{ transition: 'r 0.18s ease, fill 0.18s ease' }}/>
-            <text x={x} y={y - cr - 5} textAnchor="middle"
-              fontSize={isHov ? fs.name * 1.9 : fs.name}
-              fontWeight={isHov ? '700' : '400'}
-              fill={isHov ? '#ffffff' : 'rgba(255,255,255,0.32)'}
-              style={{ userSelect: 'none', transition: 'fill 0.18s ease, font-size 0.15s ease' }}>
-              {isHov ? node.name : node.name.split(' ')[0]}
-            </text>
-            {isHov && (
-              <text x={x} y={y + cr + 16} textAnchor="middle" fontSize={fs.detail * 1.5}
-                fill={col} opacity="0.85" style={{ userSelect: 'none' }}>
-                {node.kind === 'director' ? 'Dir · ' : ''}{node.films} {node.films === 1 ? 'film' : 'films'}
+            {/* Non-hover label only — hovered label is re-rendered after the vignette
+                so the edge-darkening overlay never dims it */}
+            {!isHov && (
+              <text x={x} y={y - cr - 5} textAnchor="middle"
+                fontSize={fs.name} fontWeight="400"
+                fill="rgba(255,255,255,0.32)"
+                style={{ userSelect: 'none' }}>
+                {node.name.split(' ')[0]}
               </text>
             )}
           </g>
@@ -518,6 +515,29 @@ function ConstellationSVG({
       {/* Vignette */}
       <rect x="0" y="0" width={W} height={H}
         fill={`url(#${p}gp-vignette)`} style={{ pointerEvents: 'none' }}/>
+
+      {/* Hovered node label — rendered AFTER the vignette so it is never dimmed
+          by the edge-darkening overlay, regardless of how far from centre the node is */}
+      {typeof hovered === 'number' && nodes[hovered] && (() => {
+        const hn  = nodes[hovered]
+        const hp  = positions[hovered]
+        const hcr = coreR(hn.films, true)
+        const col = KIND_COLOR[hn.kind]
+        return (
+          <g style={{ pointerEvents: 'none' }}>
+            <text x={hp.x} y={hp.y - hcr - 5} textAnchor="middle"
+              fontSize={fs.name * 1.9} fontWeight="700" fill="#ffffff"
+              style={{ userSelect: 'none' }}>
+              {hn.name}
+            </text>
+            <text x={hp.x} y={hp.y + hcr + 16} textAnchor="middle"
+              fontSize={fs.detail * 1.5} fill={col} opacity="0.85"
+              style={{ userSelect: 'none' }}>
+              {hn.kind === 'director' ? 'Dir · ' : ''}{hn.films} {hn.films === 1 ? 'film' : 'films'}
+            </text>
+          </g>
+        )
+      })()}
     </svg>
   )
 }
