@@ -410,9 +410,9 @@ export default async function HomePage({
         {/* ── 5. Graph Preview ─────────────────────────────────────────────── */}
         <section className="mt-14">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-white/40 mb-1">
-            ✦ Cinema Network
+            ✦ Frequent Collaborators
           </h2>
-          <p className="text-xs text-white/25 mb-4">Tap any node to explore connections</p>
+          <p className="text-xs text-white/25 mb-4">Most frequent co-stars — tap any node to explore</p>
           <GraphPreview networkData={networkData} suggestions={trendingChips} />
         </section>
 
