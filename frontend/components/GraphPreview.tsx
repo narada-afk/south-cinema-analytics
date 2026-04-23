@@ -71,31 +71,26 @@ function scatterPos(i: number, kind: NetworkNode['kind']): { x: number; y: numbe
 }
 
 function scatterPosExpanded(i: number, kind: NetworkNode['kind']): { x: number; y: number } {
-  const angle = sr(i * 37 + 11) * 2 * Math.PI
-  const cosA  = Math.cos(angle)
-  const sinA  = Math.sin(angle)
+  const PAD_X = 90, PAD_Y = 55
+  // Minimum clear radius around the centre avatar
+  const CLEAR_R = kind === 'director' ? 115 : 135
 
-  // Compute the maximum radius at this angle that stays within the padded canvas.
-  // Using the rectangle-aware formula so nodes fill all four corners, not just an oval.
-  const PAD_X = 110, PAD_Y = 65
-  const rMax = Math.min(
-    (EXP_W / 2 - PAD_X) / Math.max(Math.abs(cosA), 0.07),
-    (EXP_H / 2 - PAD_Y) / Math.max(Math.abs(sinA), 0.07),
-  )
+  // Uniformly distribute across the full canvas (fills all four corners)
+  const x0 = PAD_X + sr(i * 37 + 11) * (EXP_W - 2 * PAD_X)
+  const y0 = PAD_Y + sr(i * 41 + 13) * (EXP_H - 2 * PAD_Y)
 
-  // Minimum radius — keep a clear zone around the centre star
-  const rMin = kind === 'lead' ? 130 : kind === 'director' ? 150 : 160
-
-  // Place the node anywhere between rMin and rMax
-  const r = rMin + sr(i * 23 + 7) * Math.max(0, rMax - rMin)
-
-  // Small jitter to break the spoke pattern
-  const jx = (sr(i * 53 + 17) - 0.5) * 90
-  const jy = (sr(i * 61 + 19) - 0.5) * 55
-
-  const x = Math.max(PAD_X, Math.min(EXP_W - PAD_X, EXP_CX + r * cosA + jx))
-  const y = Math.max(PAD_Y, Math.min(EXP_H - PAD_Y, EXP_CY + r * sinA + jy))
-  return { x, y }
+  // If the point falls inside the centre clear-zone, push it outward
+  const dx = x0 - EXP_CX
+  const dy = y0 - EXP_CY
+  const dist = Math.sqrt(dx * dx + dy * dy)
+  if (dist < CLEAR_R) {
+    const scale = CLEAR_R / Math.max(dist, 1)
+    return {
+      x: Math.max(PAD_X, Math.min(EXP_W - PAD_X, EXP_CX + dx * scale)),
+      y: Math.max(PAD_Y, Math.min(EXP_H - PAD_Y, EXP_CY + dy * scale)),
+    }
+  }
+  return { x: x0, y: y0 }
 }
 
 function coreR(films: number, isHov: boolean): number {
