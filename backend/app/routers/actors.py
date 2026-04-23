@@ -68,7 +68,7 @@ def search_actors(
     ```
     """
     rows = actor_repo.search(db, q, lead_only=lead_only)
-    return [schemas.ActorSearchResult(id=row.id, name=row.name) for row in rows]
+    return [schemas.ActorSearchResult(id=row.id, name=row.name, industry=row.industry) for row in rows]
 
 
 # ── List ─────────────────────────────────────────────────────────────────────

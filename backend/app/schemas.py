@@ -41,11 +41,11 @@ class ActorOut(ActorBase):
 class ActorSearchResult(BaseModel):
     """
     Lightweight actor object returned by GET /actors/search?q=.
-    Intentionally minimal — the frontend needs only id + name to render
-    a search-results dropdown or list.
+    Includes industry so dropdowns can show e.g. "Tamil" next to the name.
     """
     id: int
     name: str
+    industry: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -16,7 +16,17 @@ DATABASE_URL = os.getenv(
 )
 
 # The engine is the core connection to the database.
-engine = create_engine(DATABASE_URL)
+# pool_size / max_overflow keep a warm connection pool so each request
+# doesn't pay the TCP + auth handshake cost.
+# connect_args sets work_mem per session so sort operations stay in memory
+# instead of spilling to disk (relevant for UNION + JOIN queries).
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+    connect_args={"options": "-c work_mem=16MB"},
+)
 
 # SessionLocal is a factory for creating new DB sessions.
 # Each request gets its own session (opened and closed per request).
