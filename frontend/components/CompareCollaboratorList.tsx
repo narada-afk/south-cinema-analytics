@@ -6,8 +6,7 @@ import type { Collaborator, SharedFilm } from '@/lib/api'
 
 // Plain browser fetch — avoids next.revalidate which is server-only
 async function fetchSharedFilms(mainActorId: number, collaboratorId: number): Promise<SharedFilm[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
-  const res = await fetch(`${apiUrl}/actors/${mainActorId}/shared/${collaboratorId}`)
+  const res = await fetch(`/api/backend/actors/${mainActorId}/shared/${collaboratorId}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }

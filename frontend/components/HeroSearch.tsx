@@ -59,8 +59,7 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
     setSearching(true)
     const tid = setTimeout(async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
-        const res    = await fetch(`${apiUrl}/actors/search?q=${encodeURIComponent(query.trim())}`)
+        const res    = await fetch(`/api/backend/actors/search?q=${encodeURIComponent(query.trim())}`)
         const data: SearchResult[] = await res.json()
         // Prioritise exact match → starts-with → contains
         const q = query.trim().toLowerCase()
@@ -117,8 +116,7 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
     if (!q) return
     setLoading(true); setNotFound(false)
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
-      const res    = await fetch(`${apiUrl}/actors/search?q=${encodeURIComponent(q)}`)
+      const res    = await fetch(`/api/backend/actors/search?q=${encodeURIComponent(q)}`)
       const data: SearchResult[] = await res.json()
       if (data.length > 0) router.push(`/actors/${toActorSlug(data[0].name)}`)
       else { setNotFound(true); setLoading(false) }

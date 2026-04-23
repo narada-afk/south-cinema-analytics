@@ -32,8 +32,7 @@ export default function SearchBar() {
     setSearching(true)
     const tid = setTimeout(async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
-        const res    = await fetch(`${apiUrl}/actors/search?q=${encodeURIComponent(query.trim())}`)
+        const res    = await fetch(`/api/backend/actors/search?q=${encodeURIComponent(query.trim())}`)
         const data: SearchResult[] = await res.json()
         // Prioritise exact match → starts-with → contains
         const q = query.trim().toLowerCase()
@@ -85,8 +84,7 @@ export default function SearchBar() {
     if (!q) return
     setLoading(true)
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
-      const res    = await fetch(`${apiUrl}/actors/search?q=${encodeURIComponent(q)}`)
+      const res    = await fetch(`/api/backend/actors/search?q=${encodeURIComponent(q)}`)
       const data: SearchResult[] = await res.json()
       if (data.length > 0) navigate(data[0].name, 'submit')
     } catch {}

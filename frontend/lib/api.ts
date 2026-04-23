@@ -1,9 +1,10 @@
-// Server-side (SSR/RSC): use Docker-internal hostname so containers can talk.
-// Client-side (browser): use localhost which the browser can actually reach.
+// Server-side (SSR/RSC): call the backend directly (same machine).
+// Client-side (browser): use the Next.js rewrite proxy at /api/backend so
+// requests work from any device on the network — no hardcoded IP needed.
 const API_URL =
   typeof window === 'undefined'
-    ? (process.env.API_URL          ?? 'http://backend:8000')   // server
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000') // browser
+    ? (process.env.API_URL ?? 'http://localhost:8000')   // server → direct
+    : '/api/backend'                                      // browser → proxied
 
 async function apiFetch<T>(path: string, revalidate = 300): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {

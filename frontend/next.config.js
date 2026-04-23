@@ -1,5 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async rewrites() {
+    const backendUrl = process.env.API_URL || 'http://localhost:8000'
+    return [
+      {
+        source: '/api/backend/:path*',
+        destination: `${backendUrl}/:path*`,
+      },
+    ]
+  },
   images: {
     unoptimized: process.env.NODE_ENV === 'development',
     remotePatterns: [

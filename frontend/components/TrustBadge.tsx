@@ -38,8 +38,7 @@ function useTrust() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
-    fetch(`${api}/trust`)
+    fetch(`/api/backend/trust`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
