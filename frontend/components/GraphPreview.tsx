@@ -518,7 +518,7 @@ export default function GraphPreview({
   networkData,
   suggestions = [],
 }: {
-  networkData: { center: NetworkCenter; nodes: NetworkNode[] } | null
+  networkData: { center: NetworkCenter; nodes: NetworkNode[]; allNodes?: NetworkNode[] } | null
   suggestions?: Actor[]
 }) {
   const router = useRouter()
@@ -527,9 +527,11 @@ export default function GraphPreview({
   const [centerImgError, setCenterImgError]           = useState(false)
   // Seed state from SSR prop so the graph renders immediately on first paint
   // instead of waiting for the mount-time API calls to return.
+  // localAllNodes uses the full node list (allNodes) so "See all N connections"
+  // shows the true total immediately — not just the compact threshold-filtered set.
   const [localCenter, setLocalCenter]                 = useState<NetworkCenter | null>(networkData?.center ?? null)
   const [localNodes, setLocalNodes]                   = useState<NetworkNode[]>(networkData?.nodes ?? [])
-  const [localAllNodes, setLocalAllNodes]             = useState<NetworkNode[]>(networkData?.nodes ?? [])
+  const [localAllNodes, setLocalAllNodes]             = useState<NetworkNode[]>(networkData?.allNodes ?? networkData?.nodes ?? [])
   const [fetchingNetwork, setFetchingNetwork]         = useState(false)
   const [hasChosen, setHasChosen]                     = useState(false)
   const [graphContainerHovered, setGraphContainerHovered] = useState(false)

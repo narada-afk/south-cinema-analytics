@@ -272,7 +272,7 @@ const FALLBACK_CENTER: NetworkCenter = { id: 1, name: 'Rajinikanth', gender: 'M'
 
 async function fetchNetworkData(
   first?: { id: number; name: string } | null,
-): Promise<{ center: NetworkCenter; nodes: NetworkNode[] } | null> {
+): Promise<{ center: NetworkCenter; nodes: NetworkNode[]; allNodes: NetworkNode[] } | null> {
   const centerId   = first?.id   ?? FALLBACK_CENTER.id
   const centerName = first?.name ?? FALLBACK_CENTER.name
 
@@ -301,21 +301,23 @@ async function fetchNetworkData(
     // Remove directors from collab list so they don't double-count
     const eligibleCollabs = collaborators.filter(c => !dirNames.has(c.actor.toLowerCase().trim()))
 
-    // Find minimum film threshold so we show ~50 nodes (matches GraphPreview client logic)
+    const directorNodes: NetworkNode[] = directors.slice(0, 8).map(d => ({
+      id:    nameToId.get(d.director.toLowerCase().trim()) ?? null,
+      name:  d.director,
+      films: d.films,
+      kind:  'director' as const,
+    }))
+
+    // Find minimum film threshold so we show ~50 nodes in the compact inline view
     const TARGET = 50
     let threshold = 1
     for (let t = 1; t <= (eligibleCollabs[0]?.films ?? 1); t++) {
       if (eligibleCollabs.filter(c => c.films >= t).length <= TARGET) { threshold = t; break }
     }
 
-    // Director nodes first, then collaborators above threshold
+    // Compact set — threshold-filtered, used for the inline constellation preview
     const nodes: NetworkNode[] = [
-      ...directors.slice(0, 8).map(d => ({
-        id:    nameToId.get(d.director.toLowerCase().trim()) ?? null,
-        name:  d.director,
-        films: d.films,
-        kind:  'director' as const,
-      })),
+      ...directorNodes,
       ...eligibleCollabs
         .filter(c => c.films >= threshold)
         .map(c => ({
@@ -326,8 +328,20 @@ async function fetchNetworkData(
         })),
     ]
 
+    // Full set — every collaborator, used in the expanded full-screen view.
+    // Passed separately so "See all N connections" shows the true total from the start.
+    const allNodes: NetworkNode[] = [
+      ...directorNodes,
+      ...eligibleCollabs.map(c => ({
+        id:    nameToId.get(c.actor.toLowerCase().trim()) ?? null,
+        name:  c.actor,
+        films: c.films,
+        kind:  leadNames.has(c.actor.toLowerCase().trim()) ? 'lead' as const : 'supporting' as const,
+      })),
+    ]
+
     if (nodes.length === 0) return null
-    return { center, nodes }
+    return { center, nodes, allNodes }
   } catch (err) {
     console.error('[homepage] network data fetch failed:', err)
     return null
