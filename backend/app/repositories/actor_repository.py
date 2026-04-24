@@ -73,10 +73,20 @@ class ActorRepository:
         """
         q_lower = q.lower().strip()
 
+        # Match quality: exact (0) → starts-with (1) → contains (2)
         rank = case(
             (func.lower(models.Actor.name) == q_lower, 0),
             (func.lower(models.Actor.name).like(f"{q_lower}%"), 1),
             else_=2,
+        )
+
+        # Actor prominence: seed primary (0) → tier=primary (1) → tier=network (2) → rest (3)
+        # Ensures lead actors/actresses always surface above supporting/minor actors.
+        tier_rank = case(
+            (models.Actor.is_primary_actor == True, 0),   # noqa: E712  original 13 seeds
+            (models.Actor.actor_tier == 'primary', 1),    # broader lead actors/actresses
+            (models.Actor.actor_tier == 'network', 2),    # well-connected supporting
+            else_=3,                                       # minor / background actors
         )
 
         query = (
@@ -87,7 +97,7 @@ class ActorRepository:
             query = query.filter(models.Actor.is_primary_actor == True)  # noqa: E712
         return (
             query
-            .order_by(rank, models.Actor.is_primary_actor.desc(), models.Actor.name)
+            .order_by(rank, tier_rank, models.Actor.name)
             .limit(limit)
             .all()
         )
