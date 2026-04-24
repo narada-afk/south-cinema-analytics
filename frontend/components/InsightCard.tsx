@@ -246,40 +246,25 @@ export default function InsightCard({
               />
             )}
 
-            {/* Two actors — overlapping circular avatars */}
+            {/* Two actors — overlapping circular initials (no photos — avoids TMDB sourced images) */}
             {multiActor && (
               <div className="flex items-end pb-4 pr-4">
                 {uniqueActors.slice(0, 2).map((actor, i) => (
                   <div
                     key={actor.name}
-                    className="relative flex-shrink-0 rounded-full overflow-hidden"
+                    className="relative flex-shrink-0 rounded-full overflow-hidden flex items-center justify-center text-lg font-bold text-white/80"
                     style={{
                       width: 100, height: 100,
                       marginLeft: i === 0 ? 0 : -28,
                       zIndex: i === 0 ? 2 : 1,
                       border: `3px solid ${bgColor}`,
                       boxShadow: '0 4px 16px rgba(0,0,0,0.55)',
+                      background: 'rgba(255,255,255,0.12)',
                       transform: hovered ? 'scale(1.06)' : 'scale(1)',
                       transition: 'transform 280ms ease',
                     }}
                   >
-                    {actor.avatarSlug ? (
-                      <Image
-                        src={`/avatars/${actor.avatarSlug}.png`}
-                        alt={actor.name}
-                        width={100}
-                        height={100}
-                        className="object-cover object-top w-full h-full"
-                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                      />
-                    ) : (
-                      <div
-                        className="w-full h-full flex items-center justify-center text-lg font-bold text-white/80"
-                        style={{ background: 'rgba(255,255,255,0.12)' }}
-                      >
-                        {actor.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
+                    {actor.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
                 ))}
               </div>
