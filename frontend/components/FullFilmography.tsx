@@ -36,7 +36,7 @@ export default function FullFilmography({ movies }: { movies: ActorMovie[] }) {
             className="px-6 py-2.5 rounded-full text-xs font-semibold border border-white/[0.12] text-white/50 hover:text-white/80 hover:border-white/25 transition-all"
             style={{ background: '#13131a' }}
           >
-            {showAll ? 'Show less ↑' : `Show all ${movies.length} films ↓`}
+            {showAll ? 'Show less ↑' : 'Show all films ↓'}
           </button>
         </div>
       )}
