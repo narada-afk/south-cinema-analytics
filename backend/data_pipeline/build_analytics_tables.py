@@ -151,8 +151,17 @@ _SQL_ACTOR_STATS = text("""
         -- Wikidata-sourced cast links (Sprints 1-5, original 13 actors)
         SELECT actor_id, movie_id FROM "cast"
         UNION
-        -- TMDB-sourced cast links (Sprints 8-9, supporting + Malayalam actors)
-        SELECT actor_id, movie_id FROM actor_movies
+        -- TMDB-sourced cast links.
+        -- For seed primary actors (is_primary_actor=TRUE) only include
+        -- role_type='primary' entries; their cameos in other actors' films
+        -- land in actor_movies with role_type='supporting' and must be excluded.
+        -- Non-primary actors have all their films as role_type='supporting', so
+        -- the OR clause keeps their entire filmography intact.
+        SELECT am.actor_id, am.movie_id
+        FROM   actor_movies am
+        JOIN   actors a ON a.id = am.actor_id
+        WHERE  a.is_primary_actor = FALSE
+           OR  am.role_type = 'primary'
     )
     INSERT INTO actor_stats
         (actor_id, film_count, first_film_year, last_film_year, avg_runtime)
@@ -176,7 +185,10 @@ _SQL_ACTOR_COLLABORATIONS = text("""
     WITH all_credits AS (
         SELECT actor_id, movie_id FROM "cast"
         UNION
-        SELECT actor_id, movie_id FROM actor_movies
+        SELECT am.actor_id, am.movie_id
+        FROM   actor_movies am
+        JOIN   actors a ON a.id = am.actor_id
+        WHERE  a.is_primary_actor = FALSE OR am.role_type = 'primary'
     )
     INSERT INTO actor_collaborations
         (actor1_id, actor2_id, collaboration_count)
@@ -195,7 +207,10 @@ _SQL_ACTOR_DIRECTOR_STATS = text("""
     WITH all_credits AS (
         SELECT actor_id, movie_id FROM "cast"
         UNION
-        SELECT actor_id, movie_id FROM actor_movies
+        SELECT am.actor_id, am.movie_id
+        FROM   actor_movies am
+        JOIN   actors a ON a.id = am.actor_id
+        WHERE  a.is_primary_actor = FALSE OR am.role_type = 'primary'
     )
     INSERT INTO actor_director_stats
         (actor_id, director, film_count)
@@ -214,7 +229,10 @@ _SQL_ACTOR_PRODUCTION_STATS = text("""
     WITH all_credits AS (
         SELECT actor_id, movie_id FROM "cast"
         UNION
-        SELECT actor_id, movie_id FROM actor_movies
+        SELECT am.actor_id, am.movie_id
+        FROM   actor_movies am
+        JOIN   actors a ON a.id = am.actor_id
+        WHERE  a.is_primary_actor = FALSE OR am.role_type = 'primary'
     )
     INSERT INTO actor_production_stats
         (actor_id, production_company, film_count)

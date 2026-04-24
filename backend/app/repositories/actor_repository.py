@@ -154,10 +154,27 @@ class ActorRepository:
           • cast        → Wikidata-sourced (original actors)
           • actor_movies → TMDB-sourced (supporting + Malayalam expansion)
         Excludes non-acting roles (narrator, voice-only, cameo, himself/herself).
+
+        Cameo guard: for the 13 original seed actors (is_primary_actor=True), TMDB
+        sometimes picks up guest appearances in other actors' films and stores them in
+        actor_movies with role_type='supporting'.  Those entries are excluded by only
+        accepting role_type='primary' from actor_movies for primary actors — their real
+        filmography already lives in the cast (Wikidata) table so nothing legit is lost.
+        Non-primary actors are unaffected (all their films are in actor_movies as
+        role_type='supporting', which is correct for them).
         """
+        # Check once whether this is a seed primary actor
+        is_primary: bool = (
+            db.query(models.Actor.is_primary_actor)
+            .filter(models.Actor.id == actor_id)
+            .scalar()
+            or False
+        )
+
         cast_ids = select(models.Cast.movie_id).where(
             models.Cast.actor_id == actor_id
         )
+
         # Exclude narrator / voice / cameo / himself roles from TMDB pipeline
         non_acting = [f"%{p}%" for p in self._NON_ACTING_PATTERNS]
         tmdb_ids = select(models.ActorMovie.movie_id).where(
@@ -167,6 +184,10 @@ class ActorRepository:
                 for p in non_acting
             ])
         )
+        # For seed primary actors, drop supporting-tagged entries (cameos in other films)
+        if is_primary:
+            tmdb_ids = tmdb_ids.where(models.ActorMovie.role_type == 'primary')
+
         all_ids = union(cast_ids, tmdb_ids).scalar_subquery()
 
         return (
