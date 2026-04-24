@@ -304,7 +304,7 @@ function ConstellationSVG({
   fs?: { name: number; detail: number; centerName: number; centerSub: number }
   centerR?: number
 }) {
-  const avatarSlug  = center.name.toLowerCase().replace(/\s+/g, '')
+  const avatarSlug  = center.name.toLowerCase().replace(/[^a-z0-9]/g, '')
   const isHovCenter = hovered === 'center'
   const p = idPrefix  // shorthand
   const CR = centerR ?? CENTER_R
