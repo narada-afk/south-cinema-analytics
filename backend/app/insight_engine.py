@@ -465,12 +465,14 @@ def _director_box_office(db: Session, limit: int = 50) -> list:
                 FROM   movies m2
                 WHERE  m2.director = m.director
                   AND  m2.box_office IS NOT NULL
+                  AND  m2.industry IN ('Telugu', 'Tamil', 'Malayalam', 'Kannada')
                 ORDER  BY m2.box_office DESC
                 LIMIT  1
             )                                                     AS biggest_title
         FROM   movies m
         WHERE  m.box_office  IS NOT NULL
           AND  m.director    IS NOT NULL
+          AND  m.industry    IN ('Telugu', 'Tamil', 'Malayalam', 'Kannada')
         GROUP  BY m.director
         HAVING SUM(m.box_office) >= 1000
         ORDER  BY total_cr DESC
