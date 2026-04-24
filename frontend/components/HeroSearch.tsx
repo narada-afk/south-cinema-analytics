@@ -131,7 +131,7 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
   }
 
   return (
-    <section className="relative flex flex-col items-center text-center pt-10 pb-4 overflow-hidden">
+    <section className="relative flex flex-col items-center text-center pt-10 pb-4">
 
       {/* ── Ambient center glow — behind all text, purely decorative ─────── */}
       <div
@@ -171,7 +171,7 @@ export default function HeroSearch({ trendingActors = [] }: { trendingActors?: T
       </p>
 
       {/* Search bar + dropdown wrapper */}
-      <div className="relative w-full max-w-3xl mt-8" style={{ zIndex: 1 }}>
+      <div className="relative w-full max-w-3xl mt-8" style={{ zIndex: 50 }}>
         <form onSubmit={handleSubmit}>
           <span
             className="absolute left-5 top-[22px] -translate-y-1/2 text-white/30 pointer-events-none z-10 transition-colors duration-200"
