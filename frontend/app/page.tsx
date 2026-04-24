@@ -190,6 +190,17 @@ function avatarSlugIfExists(name: string): string | undefined {
   return _existingAvatarSlugs.has(slug) ? slug : undefined
 }
 
+/**
+ * Avatar score for an insight: how many of its displayed actors have a local PNG.
+ * - 2 = all displayed actors have avatars  (highest priority)
+ * - 1 = at least one actor has an avatar
+ * - 0 = no avatars
+ */
+function insightAvatarScore(ins: Insight): number {
+  const displayCount = ins.type === 'director' ? 1 : 2
+  return ins.actors.slice(0, displayCount).filter(name => !!avatarSlugIfExists(name)).length
+}
+
 // ── Data helpers ──────────────────────────────────────────────────────────────
 
 async function fetchPageData(industry: string) {
@@ -197,8 +208,22 @@ async function fetchPageData(industry: string) {
     const rawInsights = await getInsights(industry)
     if (!rawInsights.length) return { insightCards: FALLBACK_INSIGHT_CARDS }
 
-    // Reorder so each industry appears before repeats
-    const insights = diversifyInsights(rawInsights)
+    // ── Avatar-first prioritisation ───────────────────────────────────────
+    // Split into 3 tiers by how many displayed actors have a local avatar PNG.
+    // Tier A (score 2) → all displayed actors have avatars  — shown first
+    // Tier B (score 1) → at least one actor has an avatar    — shown second
+    // Tier C (score 0) → no avatars                          — shown last
+    // Each tier is independently diversified so industry variety is preserved
+    // within every tier, not just globally.
+    const tierA = rawInsights.filter(i => insightAvatarScore(i) === 2)
+    const tierB = rawInsights.filter(i => insightAvatarScore(i) === 1)
+    const tierC = rawInsights.filter(i => insightAvatarScore(i) === 0)
+
+    const insights = [
+      ...diversifyInsights(tierA),
+      ...diversifyInsights(tierB),
+      ...diversifyInsights(tierC),
+    ]
 
     // No cap — show everything the engine returns, interleaved by type
     const insightCards: InsightCardData[] = insights.map((insight, i) => {
