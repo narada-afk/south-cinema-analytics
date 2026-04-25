@@ -38,7 +38,6 @@ interface ActorData {
 
 interface PageProps {
   params: { slug: string }
-  searchParams?: { from?: string }
 }
 
 // ── Data helpers ───────────────────────────────────────────────────────────────
@@ -689,7 +688,7 @@ export async function generateMetadata({ params }: PageProps) {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default async function ComparePage({ params, searchParams }: PageProps) {
+export default async function ComparePage({ params }: PageProps) {
   const names = parseSlug(params.slug)
   if (!names) notFound()
 
@@ -724,11 +723,6 @@ export default async function ComparePage({ params, searchParams }: PageProps) {
   const insights = generateStructuredInsights(data1, data2)
   const p1 = data1.profile
   const p2 = data2.profile
-
-  // Back button — context-aware via ?from param; defaults to Home
-  const from = searchParams?.from
-  const backHref = from === 'actor' ? `/actors/${p1.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}` : '/'
-  const backLabel = from === 'actor' ? p1.name : 'Home'
 
   // Pre-compute the 5 verdict metrics so Share Card stays in sync
   const shareYrs1 = calcYearsActive(p1)
@@ -774,13 +768,6 @@ export default async function ComparePage({ params, searchParams }: PageProps) {
       <Header />
 
       <main className="max-w-[1000px] mx-auto px-4 sm:px-6 pb-28 flex flex-col gap-10">
-
-        {/* Back link */}
-        <div className="pt-3">
-          <Link href={backHref} className="text-sm text-white/30 hover:text-white/60 transition-colors">
-            ← Back to {backLabel}
-          </Link>
-        </div>
 
         {/* ── Hero Banner ───────────────────────────────────────── */}
         <HeroBanner data1={data1} data2={data2} />
