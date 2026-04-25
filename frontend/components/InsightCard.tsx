@@ -210,11 +210,6 @@ export default function InsightCard({
             )}
           </div>
 
-          {/* Row 3 — One-liner headline */}
-          <p className="text-[11px] text-white/85 leading-snug line-clamp-2 min-w-0">
-            {headline}
-          </p>
-
         </div>
 
         {/* ── RIGHT: actor portrait ────────────────────────────── */}

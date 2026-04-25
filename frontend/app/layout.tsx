@@ -168,6 +168,15 @@ export default function RootLayout({
               . This product uses the TMDB API but is not endorsed or certified by TMDB.
             </p>
 
+            {/* ── Legal links ─────────────────────────────────────── */}
+            <div className="flex items-center gap-4 flex-wrap justify-center">
+              <a href="/terms"     className="text-[10px] text-white/25 hover:text-white/50 transition-colors">Terms of Use</a>
+              <span className="text-white/10 text-[10px] select-none">·</span>
+              <a href="/privacy"   className="text-[10px] text-white/25 hover:text-white/50 transition-colors">Privacy Policy</a>
+              <span className="text-white/10 text-[10px] select-none">·</span>
+              <a href="/copyright" className="text-[10px] text-white/25 hover:text-white/50 transition-colors">Copyright</a>
+            </div>
+
           </div>
         </footer>
         </div>{/* end z:1 content wrapper */}
