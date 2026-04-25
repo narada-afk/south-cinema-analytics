@@ -234,11 +234,11 @@ class ActorRepository:
         """
         Co-stars who appeared in a PRIMARY role in the same films as this actor
         (also in a primary role). Excludes supporting/background appearances.
-        Returns (name, film_count) tuples ordered by film_count DESC.
+        Returns (actor_id, name, film_count) tuples ordered by film_count DESC.
         """
         result = db.execute(
             text("""
-                SELECT a.name, COUNT(DISTINCT am2.movie_id) AS film_count
+                SELECT a.id, a.name, COUNT(DISTINCT am2.movie_id) AS film_count
                 FROM actor_movies am1
                 JOIN actor_movies am2
                   ON  am2.movie_id  = am1.movie_id
@@ -247,7 +247,7 @@ class ActorRepository:
                 JOIN actors a ON a.id = am2.actor_id
                 WHERE am1.actor_id  = :actor_id
                   AND am1.role_type = 'primary'
-                GROUP BY a.name
+                GROUP BY a.id, a.name
                 ORDER BY film_count DESC
             """),
             {"actor_id": actor_id},

@@ -12,7 +12,7 @@ import InsightsCarousel from '@/components/InsightsCarousel'
 import { type InsightCardData } from '@/components/InsightCard'
 import ConnectionFinder from '@/components/stats/ConnectionFinder'
 import CompareEntry from '@/components/CompareEntry'
-import { getInsights, getActors, getActorCollaborators, getActorLeadCollaborators, getActorDirectors, getActor, toActorSlug, type Insight } from '@/lib/api'
+import { getInsights, getActorCollaborators, getActorLeadCollaborators, getActorDirectors, getActor, toActorSlug, type Insight } from '@/lib/api'
 import type { TrendingChip } from '@/components/HeroSearch'
 import type { NetworkCenter, NetworkNode } from '@/components/GraphPreview'
 
@@ -298,45 +298,46 @@ async function fetchNetworkData(
   const centerName = first?.name ?? FALLBACK_CENTER.name
 
   try {
-    // Fetch collaborators, lead collaborators, directors + actor list in parallel
-    const [collaborators, leadCollabs, directors, actors] = await Promise.all([
+    // Three fetches only — getActors() removed.
+    // Collaborator.actor_id (non-zero) already identifies South Indian actors
+    // in our DB, so we no longer need a full actor list to filter or resolve IDs.
+    const [collaborators, leadCollabs, directors] = await Promise.all([
       getActorCollaborators(centerId),
       getActorLeadCollaborators(centerId).catch(() => []),
       getActorDirectors(centerId).catch(() => []),
-      getActors(true),
     ])
 
-    // Resolve gender from actors list — drives the pronoun in GraphPreview subtitle
-    const centerActor = actors.find(a => a.id === centerId)
+    // All homepage trending heroes (Rajinikanth, Chiranjeevi, Mohanlal, Puneet
+    // Rajkumar) are male. Default 'M' is also the FALLBACK_CENTER gender, so
+    // the pronoun in the graph subtitle is always correct without a lookup.
     const center: NetworkCenter = {
       id:     centerId,
       name:   centerName,
-      gender: centerActor?.gender ?? FALLBACK_CENTER.gender,
+      gender: FALLBACK_CENTER.gender,
     }
 
-    // Build a name → id lookup (case-insensitive) so collaborators get navigable IDs
-    const nameToId  = new Map(actors.map(a => [a.name.toLowerCase().trim(), a.id]))
-    const leadNames = new Set(leadCollabs.map(l => l.actor.toLowerCase().trim()))
-    const dirNames  = new Set(directors.slice(0, 8).map(d => d.director.toLowerCase().trim()))
+    // Lead actor IDs — used for 'lead' vs 'supporting' node classification.
+    // Now uses actor_id (returned by the fixed lead-collaborators endpoint)
+    // instead of name matching, which is faster and handles name variations.
+    const leadIds  = new Set(leadCollabs.map(l => l.actor_id).filter(id => id > 0))
+    const dirNames = new Set(directors.slice(0, 8).map(d => d.director.toLowerCase().trim()))
 
     // Remove directors from collab list so they don't double-count
     const eligibleCollabs = collaborators.filter(c => !dirNames.has(c.actor.toLowerCase().trim()))
 
-    // Restrict to South Indian actors only — actors outside our primary list
-    // (e.g. Bollywood / Hollywood guests) are filtered out from both views.
-    const southIndianCollabs = eligibleCollabs.filter(c =>
-      nameToId.has(c.actor.toLowerCase().trim())
-    )
+    // South Indian filter: actor_id > 0 means the actor exists in our DB
+    // (the collaborators endpoint sets actor_id = 0 for unrecognised guests).
+    const southIndianCollabs = eligibleCollabs.filter(c => c.actor_id > 0)
 
+    // Director nodes — directors are not in the actors table, so id is null.
     const directorNodes: NetworkNode[] = directors.slice(0, 8).map(d => ({
-      id:    nameToId.get(d.director.toLowerCase().trim()) ?? null,
+      id:    null,
       name:  d.director,
       films: d.films,
       kind:  'director' as const,
     }))
 
     // Find minimum film threshold so we show ~50 nodes in the compact inline view.
-    // Run against southIndianCollabs so the count is accurate after the SI filter.
     const TARGET = 50
     let threshold = 1
     for (let t = 1; t <= (southIndianCollabs[0]?.films ?? 1); t++) {
@@ -349,10 +350,10 @@ async function fetchNetworkData(
       ...southIndianCollabs
         .filter(c => c.films >= threshold)
         .map(c => ({
-          id:    nameToId.get(c.actor.toLowerCase().trim()) ?? null,
+          id:    c.actor_id || null,
           name:  c.actor,
           films: c.films,
-          kind:  leadNames.has(c.actor.toLowerCase().trim()) ? 'lead' as const : 'supporting' as const,
+          kind:  leadIds.has(c.actor_id) ? 'lead' as const : 'supporting' as const,
         })),
     ]
 
@@ -361,10 +362,10 @@ async function fetchNetworkData(
     const allNodes: NetworkNode[] = [
       ...directorNodes,
       ...southIndianCollabs.map(c => ({
-        id:    nameToId.get(c.actor.toLowerCase().trim()) ?? null,
+        id:    c.actor_id || null,
         name:  c.actor,
         films: c.films,
-        kind:  leadNames.has(c.actor.toLowerCase().trim()) ? 'lead' as const : 'supporting' as const,
+        kind:  leadIds.has(c.actor_id) ? 'lead' as const : 'supporting' as const,
       })),
     ]
 

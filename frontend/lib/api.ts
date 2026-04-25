@@ -131,7 +131,9 @@ export async function getInsights(industry?: string): Promise<Insight[]> {
     industry && industry !== 'all' && industry !== 'explore'
       ? `?industry=${encodeURIComponent(industry)}`
       : ''
-  const data = await apiFetch<{ insights: Insight[] }>(`/analytics/insights${param}`, 60)
+  // 600 s matches the backend's 10-minute in-memory TTL so the frontend
+  // doesn't hammer the backend with recomputes between edge-cache misses.
+  const data = await apiFetch<{ insights: Insight[] }>(`/analytics/insights${param}`, 600)
   return data.insights
 }
 

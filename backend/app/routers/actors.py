@@ -209,8 +209,8 @@ def get_lead_collaborators(actor_id: int, db: Session = Depends(get_db)):
 
     rows = actor_repo.get_lead_collaborators(db, actor_id)
     return [
-        schemas.CollaboratorOut(actor=name, films=count)
-        for name, count in rows
+        schemas.CollaboratorOut(actor=name, films=count, actor_id=aid)
+        for aid, name, count in rows
     ]
 
 
