@@ -18,7 +18,7 @@ import InsightCard, { type InsightCardData } from '@/components/InsightCard'
 
 const CARD_W   = 380
 const GAP      = 16   // gap-4
-const SPEED    = 0.05 // px/ms → ~50 px/s
+const SPEED    = 0.22 // px/ms → ~220 px/s ≈ one card every 1.5 s — visibly drifting
 const JUMP     = 2    // cards per button click
 
 // Responsive card width:
@@ -72,7 +72,9 @@ export default function InsightsCarousel({ cards }: { cards: InsightCardData[] }
         isIntersectingRef.current = entry.isIntersecting
         viewPausedRef.current = document.hidden || !entry.isIntersecting
       },
-      { threshold: 0.1 },
+      // Fire as soon as any pixel is visible so the scroll is already
+      // drifting by the time the user finishes scrolling to this section
+      { threshold: 0.01 },
     )
     observer.observe(el)
 
@@ -105,11 +107,11 @@ export default function InsightsCarousel({ cards }: { cards: InsightCardData[] }
     hoverPausedRef.current     = true
     el.scrollBy({ left: direction * jump, behavior: 'smooth' })
 
-    // Resume auto-scroll after smooth animation completes (~600 ms)
+    // Resume auto-scroll after smooth animation completes
     setTimeout(() => {
       hoverPausedRef.current     = false
       manualScrollingRef.current = false
-    }, 800)
+    }, 600)
   }
 
   if (cards.length === 0) return null
@@ -200,11 +202,11 @@ export default function InsightsCarousel({ cards }: { cards: InsightCardData[] }
               touchActiveRef.current = true
             }}
             onTouchEnd={() => {
-              // Give momentum scrolling ~1.5 s to settle before RAF resumes
+              // Give momentum scrolling ~0.8 s to settle before RAF resumes
               setTimeout(() => {
                 hoverPausedRef.current = false
                 touchActiveRef.current = false
-              }, 1500)
+              }, 800)
             }}
             onTouchCancel={() => {
               setTimeout(() => {
