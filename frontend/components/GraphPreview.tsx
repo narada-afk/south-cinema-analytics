@@ -8,7 +8,6 @@ import {
   getActorCollaborators,
   getActorLeadCollaborators,
   getActorDirectors,
-  getActors,
   toActorSlug,
   type Actor,
 } from '@/lib/api'
@@ -35,6 +34,13 @@ const SVG_H    = 400
 const CX       = SVG_W / 2
 const CY       = SVG_H / 2
 const CENTER_R = 21
+
+// Mobile inline canvas — square-ish, top 20 nodes, larger dots/fonts
+const MOB_W   = 500
+const MOB_H   = 500
+const MOB_CX  = MOB_W / 2
+const MOB_CY  = MOB_H / 2
+const MOB_MAX = 20
 
 // Expanded full-screen canvas
 const EXP_W  = 1800
@@ -94,13 +100,27 @@ function scatterPosExpanded(i: number, kind: NetworkNode['kind']): { x: number; 
   return { x: x0, y: y0 }
 }
 
-function coreR(films: number, isHov: boolean): number {
-  if (isHov) return 5.5
-  return 1.4 + Math.min(films * 0.04, 1.2)
+/** Scatter positions for the mobile 500×500 inline canvas. */
+function scatterPosMobile(i: number, kind: NetworkNode['kind']): { x: number; y: number } {
+  const angle = sr(i * 37 + 11) * 2 * Math.PI
+  const [rxMin, rxMax] = kind === 'lead' ? [58, 178] : kind === 'director' ? [68, 185] : [78, 192]
+  const [ryMin, ryMax] = kind === 'lead' ? [55, 175] : kind === 'director' ? [63, 182] : [72, 188]
+  const rx = rxMin + sr(i * 23 + 7)  * (rxMax - rxMin)
+  const ry = ryMin + sr(i * 41 + 13) * (ryMax - ryMin)
+  const jx = (sr(i * 53 + 17) - 0.5) * 22
+  const jy = (sr(i * 61 + 19) - 0.5) * 22
+  const x = Math.max(36, Math.min(MOB_W - 36, MOB_CX + rx * Math.cos(angle) + jx))
+  const y = Math.max(28, Math.min(MOB_H - 28, MOB_CY + ry * Math.sin(angle) + jy))
+  return { x, y }
 }
 
-function glowR(films: number): number {
-  return 9 + Math.min(films * 0.3, 8)
+function coreR(films: number, isHov: boolean, scale = 1): number {
+  if (isHov) return 5.5 * scale
+  return (1.4 + Math.min(films * 0.04, 1.2)) * scale
+}
+
+function glowR(films: number, scale = 1): number {
+  return (9 + Math.min(films * 0.3, 8)) * scale
 }
 
 function initials(name: string) {
@@ -279,6 +299,8 @@ function ConstellationSVG({
   idPrefix = '',
   fs = { name: 8.5, detail: 7, centerName: 10, centerSub: 7.5 },
   centerR,
+  nodeScale = 1,
+  svgTouchAction = 'pan-y',
 }: {
   W: number; H: number; cx: number; cy: number
   center: NetworkCenter
@@ -294,6 +316,10 @@ function ConstellationSVG({
   idPrefix?: string
   fs?: { name: number; detail: number; centerName: number; centerSub: number }
   centerR?: number
+  /** Scale multiplier for node dot + glow radii (default 1; use 2 for mobile inline). */
+  nodeScale?: number
+  /** CSS touch-action for the SVG element (default 'pan-y'; use 'none' in fullscreen overlay). */
+  svgTouchAction?: string
 }) {
   const avatarSlug  = center.name.toLowerCase().replace(/[^a-z0-9]/g, '')
   const isHovCenter = hovered === 'center'
@@ -304,7 +330,7 @@ function ConstellationSVG({
     <svg
       viewBox={`0 0 ${W} ${H}`}
       className="w-full h-full"
-      style={{ display: 'block', touchAction: 'pan-y' }}
+      style={{ display: 'block', touchAction: svgTouchAction as React.CSSProperties['touchAction'] }}
       onTouchStart={() => setHovered(null)}
     >
       <defs>
@@ -414,8 +440,8 @@ function ConstellationSVG({
         const { x, y } = positions[i]
         const col   = KIND_COLOR[node.kind]
         const isHov = hovered === i
-        const cr    = coreR(node.films, isHov)
-        const gr    = glowR(node.films)
+        const cr    = coreR(node.films, isHov, nodeScale)
+        const gr    = glowR(node.films, nodeScale)
         const floatAmp = 2.5 + sr(i * 7 + 1) * 3.5
         const floatDur = `${3.8 + sr(i * 11 + 3) * 2.8}s`
         const floatDel = `${sr(i * 13 + 7) * 2}s`
@@ -512,7 +538,7 @@ function ConstellationSVG({
       {typeof hovered === 'number' && nodes[hovered] && (() => {
         const hn  = nodes[hovered]
         const hp  = positions[hovered]
-        const hcr = coreR(hn.films, true)
+        const hcr = coreR(hn.films, true, nodeScale)
         const col = KIND_COLOR[hn.kind]
         return (
           <g style={{ pointerEvents: 'none' }}>
@@ -548,8 +574,6 @@ export default function GraphPreview({
   const [centerImgError, setCenterImgError]           = useState(false)
   // Seed state from SSR prop so the graph renders immediately on first paint
   // instead of waiting for the mount-time API calls to return.
-  // localAllNodes uses the full node list (allNodes) so "See all N connections"
-  // shows the true total immediately — not just the compact threshold-filtered set.
   const [localCenter, setLocalCenter]                 = useState<NetworkCenter | null>(networkData?.center ?? null)
   const [localNodes, setLocalNodes]                   = useState<NetworkNode[]>(networkData?.nodes ?? [])
   const [localAllNodes, setLocalAllNodes]             = useState<NetworkNode[]>(networkData?.allNodes ?? networkData?.nodes ?? [])
@@ -557,6 +581,14 @@ export default function GraphPreview({
   const [hasChosen, setHasChosen]                     = useState(false)
   const [graphContainerHovered, setGraphContainerHovered] = useState(false)
   const [isExpanded, setIsExpanded]                   = useState(false)
+  // Mobile: 'graph' shows the constellation, 'list' shows a scrollable roster
+  const [mobileTab, setMobileTab]                     = useState<'graph' | 'list'>('graph')
+  // Fullscreen overlay pinch-to-zoom + single-finger pan
+  const [expScale, setExpScale]                       = useState(1)
+  const [expOffset, setExpOffset]                     = useState({ x: 0, y: 0 })
+  const pinchInitDistRef  = useRef<number | null>(null)
+  const pinchInitScaleRef = useRef(1)
+  const panStartRef       = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
   const { toast, showToast } = useToast()
 
   useEffect(() => { setCenterImgError(false) }, [localCenter?.id])
@@ -595,6 +627,9 @@ export default function GraphPreview({
   async function handleActorSelect(actor: Actor) {
     setHasChosen(true)
     setFetchingNetwork(true)
+    // Reset fullscreen zoom/pan whenever the centre actor changes
+    setExpScale(1)
+    setExpOffset({ x: 0, y: 0 })
     try {
       const [collaborators, leadCollabs, directors] = await Promise.all([
         getActorCollaborators(actor.id),
@@ -664,10 +699,18 @@ export default function GraphPreview({
   const center = localCenter
   const nodes  = localNodes
 
+  // Mobile: top MOB_MAX nodes only (enough for a readable 500×500 canvas)
+  const mobileNodes = useMemo(() => nodes.slice(0, MOB_MAX), [nodes])
+
   const positions = useMemo(
     () => nodes.map((n, i) => scatterPos(i, n.kind)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [nodes.map(n => `${n.name}:${n.kind}`).join(',')]
+  )
+  const mobilePositions = useMemo(
+    () => mobileNodes.map((n, i) => scatterPosMobile(i, n.kind)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mobileNodes.map(n => `${n.name}:${n.kind}`).join(',')]
   )
   const expandedPositions = useMemo(
     () => localAllNodes.map((n, i) => scatterPosExpanded(i, n.kind)),
@@ -685,6 +728,46 @@ export default function GraphPreview({
   }
   function handleCenterClick() {
     if (center) router.push(`/actors/${toActorSlug(center.name)}`)
+  }
+
+  // ── Pinch-to-zoom + single-finger pan for the fullscreen overlay ─────────────
+
+  function getTouchDist(touches: React.TouchList) {
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  function handleExpTouchStart(e: React.TouchEvent) {
+    if (e.touches.length === 2) {
+      pinchInitDistRef.current  = getTouchDist(e.touches)
+      pinchInitScaleRef.current = expScale
+      panStartRef.current = null
+    } else if (e.touches.length === 1) {
+      panStartRef.current = {
+        x: e.touches[0].clientX, y: e.touches[0].clientY,
+        ox: expOffset.x, oy: expOffset.y,
+      }
+      pinchInitDistRef.current = null
+    }
+  }
+
+  function handleExpTouchMove(e: React.TouchEvent) {
+    if (e.touches.length === 2 && pinchInitDistRef.current !== null) {
+      e.preventDefault()
+      const ratio = getTouchDist(e.touches) / pinchInitDistRef.current
+      setExpScale(Math.max(0.6, Math.min(5, pinchInitScaleRef.current * ratio)))
+    } else if (e.touches.length === 1 && panStartRef.current) {
+      e.preventDefault()
+      const dx = e.touches[0].clientX - panStartRef.current.x
+      const dy = e.touches[0].clientY - panStartRef.current.y
+      setExpOffset({ x: panStartRef.current.ox + dx, y: panStartRef.current.oy + dy })
+    }
+  }
+
+  function handleExpTouchEnd(e: React.TouchEvent) {
+    if (e.touches.length < 2) pinchInitDistRef.current = null
+    if (e.touches.length === 0) panStartRef.current = null
   }
 
   const legendRow = (
@@ -728,6 +811,34 @@ export default function GraphPreview({
         </div>
       </div>
 
+      {/* ── Mobile tab toggle: Constellation / All Collaborators ── */}
+      {hasGraph && (
+        <div className="flex sm:hidden items-center gap-2 px-6 pb-3">
+          <button
+            onClick={() => setMobileTab('graph')}
+            className="text-xs px-4 py-1.5 rounded-full transition-all font-medium"
+            style={{
+              background: mobileTab === 'graph' ? 'rgba(255,255,255,0.13)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${mobileTab === 'graph' ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.10)'}`,
+              color: mobileTab === 'graph' ? '#fff' : 'rgba(255,255,255,0.40)',
+            }}
+          >
+            ✦ Constellation
+          </button>
+          <button
+            onClick={() => setMobileTab('list')}
+            className="text-xs px-4 py-1.5 rounded-full transition-all font-medium"
+            style={{
+              background: mobileTab === 'list' ? 'rgba(255,255,255,0.13)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${mobileTab === 'list' ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.10)'}`,
+              color: mobileTab === 'list' ? '#fff' : 'rgba(255,255,255,0.40)',
+            }}
+          >
+            ☰ All Collaborators
+          </button>
+        </div>
+      )}
+
       {/* ── Empty state ── */}
       {!hasChosen && (
         <div className="relative rounded-b-3xl overflow-hidden" style={{ minHeight: 300 }}>
@@ -752,7 +863,7 @@ export default function GraphPreview({
         </div>
       )}
 
-      {/* ── Constellation ── */}
+      {/* ── Constellation + list area ── */}
       {hasChosen && (
         <div
           className="pb-5 relative"
@@ -776,22 +887,79 @@ export default function GraphPreview({
               <p className="text-white/20 text-sm">No collaboration data available yet</p>
             </div>
           ) : (
-            <ConstellationSVG
-              W={SVG_W} H={SVG_H} cx={CX} cy={CY}
-              center={center} nodes={nodes} positions={positions}
-              bgStars={bgStars}
-              hovered={hovered} setHovered={setHovered}
-              centerImgError={centerImgError} setCenterImgError={setCenterImgError}
-              onNodeClick={handleNodeClick} onCenterClick={handleCenterClick}
-              idPrefix="inline-"
-            />
+            <>
+              {/* ─ Desktop constellation — full 1100×400, hidden on mobile ─ */}
+              <div className="hidden sm:block">
+                <ConstellationSVG
+                  W={SVG_W} H={SVG_H} cx={CX} cy={CY}
+                  center={center} nodes={nodes} positions={positions}
+                  bgStars={bgStars}
+                  hovered={hovered} setHovered={setHovered}
+                  centerImgError={centerImgError} setCenterImgError={setCenterImgError}
+                  onNodeClick={handleNodeClick} onCenterClick={handleCenterClick}
+                  idPrefix="inline-"
+                />
+              </div>
+
+              {/* ─ Mobile constellation — 500×500, top 20 nodes, larger dots ─ */}
+              {/* Shown on mobile only, and only when the Constellation tab is active */}
+              <div className={mobileTab === 'graph' ? 'block sm:hidden' : 'hidden'}
+                style={{ aspectRatio: '1 / 1' }}>
+                <ConstellationSVG
+                  W={MOB_W} H={MOB_H} cx={MOB_CX} cy={MOB_CY}
+                  center={center} nodes={mobileNodes} positions={mobilePositions}
+                  bgStars={bgStars}
+                  hovered={hovered} setHovered={setHovered}
+                  centerImgError={centerImgError} setCenterImgError={setCenterImgError}
+                  onNodeClick={handleNodeClick} onCenterClick={handleCenterClick}
+                  idPrefix="mob-"
+                  fs={{ name: 11, detail: 8.5, centerName: 14, centerSub: 10 }}
+                  centerR={28}
+                  nodeScale={2}
+                />
+              </div>
+
+              {/* ─ Mobile list view — shown only when the All Collaborators tab is active ─ */}
+              {mobileTab === 'list' && (
+                <div className="block sm:hidden px-4 pb-2" style={{ maxHeight: 380, overflowY: 'auto' }}>
+                  {localAllNodes.map((node, i) => (
+                    <button
+                      key={i}
+                      onClick={() => node.id ? router.push(`/actors/${toActorSlug(node.name)}`) : undefined}
+                      disabled={!node.id}
+                      className="w-full flex items-center justify-between py-2.5 border-b border-white/[0.06] last:border-0 text-left disabled:opacity-60"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span style={{ color: KIND_COLOR[node.kind], fontSize: 7, flexShrink: 0 }}>●</span>
+                        <span className="text-white/85 text-sm font-medium truncate">{node.name}</span>
+                        {node.kind === 'director' && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0"
+                            style={{ background: 'rgba(34,211,238,0.12)', color: '#22d3ee' }}>
+                            Dir
+                          </span>
+                        )}
+                        {node.kind === 'lead' && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0"
+                            style={{ background: 'rgba(244,114,182,0.12)', color: '#f472b6' }}>
+                            Lead
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-white/35 text-xs flex-shrink-0 ml-3">
+                        {node.films} {node.films === 1 ? 'film' : 'films'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
-          {/* Expand button — appears on hover */}
+          {/* ─ Desktop expand button — hover-gated, hidden on mobile ─ */}
           {hasGraph && graphContainerHovered && !isExpanded && (
             <button
               onClick={() => setIsExpanded(true)}
-              className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+              className="hidden sm:flex absolute bottom-4 right-4 z-20 items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
               style={{
                 background: 'rgba(255,255,255,0.09)',
                 border: '1px solid rgba(255,255,255,0.20)',
@@ -807,6 +975,26 @@ export default function GraphPreview({
               See full network · {localAllNodes.length}
             </button>
           )}
+
+          {/* ─ Mobile expand button — always visible, descriptive label ─ */}
+          {hasGraph && !isExpanded && (
+            <div className="flex sm:hidden justify-center pt-1 pb-2 px-4">
+              <button
+                onClick={() => setIsExpanded(true)}
+                className="flex items-center justify-center gap-2 w-full px-5 py-2.5 rounded-full text-sm font-semibold transition-all"
+                style={{
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  color: 'rgba(255,255,255,0.65)',
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+                See all {localAllNodes.length} collaborators
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -815,7 +1003,7 @@ export default function GraphPreview({
         <div className="fixed inset-0 z-[1000] flex flex-col" style={{ background: '#07070f' }}>
 
           {/* Overlay header */}
-          <div className="flex items-center justify-between px-6 py-4 flex-shrink-0"
+          <div className="flex items-center justify-between px-4 sm:px-6 py-4 flex-shrink-0"
             style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -844,16 +1032,28 @@ export default function GraphPreview({
                 <span className="text-white/20">· {localAllNodes.length} total</span>
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <ActorPicker
-                onSelect={(actor) => { handleActorSelect(actor) }}
-                loading={fetchingNetwork}
-                defaultSuggestions={suggestions}
-                variant="prominent"
-              />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="hidden sm:block">
+                <ActorPicker
+                  onSelect={(actor) => { handleActorSelect(actor) }}
+                  loading={fetchingNetwork}
+                  defaultSuggestions={suggestions}
+                  variant="prominent"
+                />
+              </div>
+              {/* Reset zoom — only shown when zoomed/panned */}
+              {(expScale !== 1 || expOffset.x !== 0 || expOffset.y !== 0) && (
+                <button
+                  onClick={() => { setExpScale(1); setExpOffset({ x: 0, y: 0 }) }}
+                  className="text-xs px-3 py-1.5 rounded-full font-medium transition-all flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.55)' }}
+                >
+                  Reset zoom
+                </button>
+              )}
               <button
-                onClick={() => setIsExpanded(false)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all flex-shrink-0"
+                onClick={() => { setIsExpanded(false); setExpScale(1); setExpOffset({ x: 0, y: 0 }) }}
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-sm font-semibold transition-all flex-shrink-0"
                 style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.60)' }}
                 onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(255,255,255,0.13)'; b.style.color = '#fff' }}
                 onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(255,255,255,0.07)'; b.style.color = 'rgba(255,255,255,0.60)' }}
@@ -866,22 +1066,43 @@ export default function GraphPreview({
             </div>
           </div>
 
-          {/* Full-screen SVG — uses ALL collaborators */}
-          <div className="flex-1 overflow-hidden">
-            <ConstellationSVG
-              W={EXP_W} H={EXP_H} cx={EXP_CX} cy={EXP_CY}
-              center={center} nodes={localAllNodes} positions={expandedPositions}
-              bgStars={bgStars}
-              hovered={expandHovered} setHovered={setExpandHovered}
-              centerImgError={centerImgError} setCenterImgError={setCenterImgError}
-              onNodeClick={handleNodeClick} onCenterClick={handleCenterClick}
-              idPrefix="exp-"
-              fs={{ name: 11, detail: 9, centerName: 13, centerSub: 9.5 }}
-              centerR={42}
-            />
+          {/* Full-screen SVG — pinch to zoom, drag to pan on mobile */}
+          <div
+            className="flex-1 overflow-hidden"
+            style={{ touchAction: 'none' }}
+            onTouchStart={handleExpTouchStart}
+            onTouchMove={handleExpTouchMove}
+            onTouchEnd={handleExpTouchEnd}
+          >
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                transform: `translate(${expOffset.x}px, ${expOffset.y}px) scale(${expScale})`,
+                transformOrigin: 'center center',
+                willChange: 'transform',
+              }}
+            >
+              <ConstellationSVG
+                W={EXP_W} H={EXP_H} cx={EXP_CX} cy={EXP_CY}
+                center={center} nodes={localAllNodes} positions={expandedPositions}
+                bgStars={bgStars}
+                hovered={expandHovered} setHovered={setExpandHovered}
+                centerImgError={centerImgError} setCenterImgError={setCenterImgError}
+                onNodeClick={handleNodeClick} onCenterClick={handleCenterClick}
+                idPrefix="exp-"
+                fs={{ name: 11, detail: 9, centerName: 13, centerSub: 9.5 }}
+                centerR={42}
+                svgTouchAction="none"
+              />
+            </div>
           </div>
 
-          <p className="text-center text-white/15 text-[10px] pb-3 tracking-widest flex-shrink-0">
+          {/* Footer hint — mobile shows pinch/pan hint, desktop shows ESC hint */}
+          <p className="sm:hidden text-center text-white/15 text-[10px] pb-3 tracking-widest flex-shrink-0">
+            Pinch to zoom · drag to pan
+          </p>
+          <p className="hidden sm:block text-center text-white/15 text-[10px] pb-3 tracking-widest flex-shrink-0">
             Press ESC to close
           </p>
         </div>

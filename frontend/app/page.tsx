@@ -261,7 +261,10 @@ async function fetchPageData(industry: string) {
             // only set avatarSlug when a matching PNG actually exists on disk
             avatarSlug: avatarSlugIfExists(name),
           })),
-        gradient: GRADIENTS[i % GRADIENTS.length],
+        gradient:    GRADIENTS[i % GRADIENTS.length],
+        // NEW: pass the backend insight type so the card uses the correct
+        // gradient theme instead of a round-robin colour assignment.
+        insightType: insight.type,
         href,
       }
     })
