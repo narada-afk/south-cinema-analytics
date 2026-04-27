@@ -22,10 +22,12 @@ const SPEED    = 0.05 // px/ms → ~50 px/s
 const JUMP     = 2    // cards per button click
 
 // Responsive card width:
-//   mobile  — fills viewport minus page padding + a 24 px peek of the next card
-//   desktop — fixed 380 px
+//   mobile  — the carousel breaks out of page padding (handled by -mx-6 in page.tsx),
+//             so 100vw is the true container. We subtract 56px: 24px left-indent
+//             (pl-6 on the flex row) + 16px gap + 16px right-peek for scroll hint.
+//   desktop — fixed 380 px (page padding is intact so no break-out)
 // clamp(min, preferred, max) ensures it never shrinks below 260 px or grows past 380 px
-const CARD_WIDTH_CSS = 'clamp(260px, calc(100vw - 88px), 380px)'
+const CARD_WIDTH_CSS = 'clamp(260px, calc(100vw - 56px), 380px)'
 
 export default function InsightsCarousel({ cards }: { cards: InsightCardData[] }) {
   const scrollRef          = useRef<HTMLDivElement>(null)
@@ -211,7 +213,8 @@ export default function InsightsCarousel({ cards }: { cards: InsightCardData[] }
               }, 300)
             }}
           >
-            <div className="flex gap-4 pb-1" style={{ width: 'max-content' }}>
+            {/* pl-6 on mobile aligns first card with section heading; sm:pl-0 resets on desktop */}
+            <div className="flex gap-4 pb-1 pl-6 sm:pl-0" style={{ width: 'max-content' }}>
               {items.map((card, i) => (
                 <div key={i} style={{ width: CARD_WIDTH_CSS, flexShrink: 0, scrollSnapAlign: 'start' }}>
                   <InsightCard {...card} />

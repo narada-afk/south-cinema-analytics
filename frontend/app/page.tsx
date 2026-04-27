@@ -426,7 +426,11 @@ export default async function HomePage({
           <h2 className="text-xs font-semibold uppercase tracking-widest text-white/40 mb-5">
             🔥 Did you know?
           </h2>
-          <InsightsCarousel cards={insightCards} />
+          {/* On mobile the carousel breaks out of page px-6 so cards sit edge-to-edge.
+              On desktop (sm+) the negative margin is neutralised. */}
+          <div className="-mx-6 sm:mx-0">
+            <InsightsCarousel cards={insightCards} />
+          </div>
         </section>
 
         {/* ── 3. Compare Entry ─────────────────────────────────────────────── */}

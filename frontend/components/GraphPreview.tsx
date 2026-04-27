@@ -35,12 +35,12 @@ const CX       = SVG_W / 2
 const CY       = SVG_H / 2
 const CENTER_R = 21
 
-// Mobile inline canvas — square-ish, top 20 nodes, larger dots/fonts
+// Mobile inline canvas — square-ish, top 12 nodes, larger dots/fonts
 const MOB_W   = 500
 const MOB_H   = 500
 const MOB_CX  = MOB_W / 2
 const MOB_CY  = MOB_H / 2
-const MOB_MAX = 20
+const MOB_MAX = 12
 
 // Expanded full-screen canvas
 const EXP_W  = 1800
@@ -100,17 +100,18 @@ function scatterPosExpanded(i: number, kind: NetworkNode['kind']): { x: number; 
   return { x: x0, y: y0 }
 }
 
-/** Scatter positions for the mobile 500×500 inline canvas. */
+/** Scatter positions for the mobile 500×500 inline canvas (12 nodes max). */
 function scatterPosMobile(i: number, kind: NetworkNode['kind']): { x: number; y: number } {
   const angle = sr(i * 37 + 11) * 2 * Math.PI
-  const [rxMin, rxMax] = kind === 'lead' ? [58, 178] : kind === 'director' ? [68, 185] : [78, 192]
-  const [ryMin, ryMax] = kind === 'lead' ? [55, 175] : kind === 'director' ? [63, 182] : [72, 188]
+  // Wider radii so 12 nodes have breathing room across the 500×500 canvas
+  const [rxMin, rxMax] = kind === 'lead' ? [80, 205] : kind === 'director' ? [88, 210] : [95, 215]
+  const [ryMin, ryMax] = kind === 'lead' ? [75, 200] : kind === 'director' ? [82, 205] : [90, 210]
   const rx = rxMin + sr(i * 23 + 7)  * (rxMax - rxMin)
   const ry = ryMin + sr(i * 41 + 13) * (ryMax - ryMin)
-  const jx = (sr(i * 53 + 17) - 0.5) * 22
-  const jy = (sr(i * 61 + 19) - 0.5) * 22
-  const x = Math.max(36, Math.min(MOB_W - 36, MOB_CX + rx * Math.cos(angle) + jx))
-  const y = Math.max(28, Math.min(MOB_H - 28, MOB_CY + ry * Math.sin(angle) + jy))
+  const jx = (sr(i * 53 + 17) - 0.5) * 18
+  const jy = (sr(i * 61 + 19) - 0.5) * 18
+  const x = Math.max(44, Math.min(MOB_W - 44, MOB_CX + rx * Math.cos(angle) + jx))
+  const y = Math.max(36, Math.min(MOB_H - 36, MOB_CY + ry * Math.sin(angle) + jy))
   return { x, y }
 }
 
@@ -782,33 +783,58 @@ export default function GraphPreview({
     <div className="rounded-3xl border border-white/[0.08] overflow-visible" style={{ background: '#0d0d15' }}>
 
       {/* ── Header ── */}
-      <div className="px-6 pt-6 pb-3 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <span style={{ color: CENTER_COLOR, opacity: 0.8 }}>✦</span>
-            {hasChosen && center ? center.name : 'Discover Connections'}
-          </h2>
-          {hasGraph ? legendRow : (
-            <p className="text-white/30 text-xs mt-0.5">Tap stars to explore connections</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0 pt-1">
+      <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3">
+        {/* Row 1: name + stats (share button inline on mobile) */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <span style={{ color: CENTER_COLOR, opacity: 0.8 }}>✦</span>
+              {hasChosen && center ? center.name : 'Discover Connections'}
+            </h2>
+            {hasGraph ? legendRow : (
+              <p className="text-white/30 text-xs mt-0.5">Tap stars to explore connections</p>
+            )}
+          </div>
+          {/* Desktop: share + picker inline with title */}
+          <div className="hidden sm:flex items-center gap-2 flex-shrink-0 pt-1">
+            {hasChosen && center && (
+              <button onClick={handleShare}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white/[0.07] border border-white/[0.12] text-white/50 hover:text-white/80 hover:border-white/25 transition-all"
+                aria-label="Share network">
+                🔗
+              </button>
+            )}
+            {hasChosen && (
+              <ActorPicker
+                onSelect={handleActorSelect}
+                loading={fetchingNetwork}
+                defaultSuggestions={suggestions}
+                variant="prominent"
+              />
+            )}
+          </div>
+          {/* Mobile: share button only in this row */}
           {hasChosen && center && (
             <button onClick={handleShare}
-              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white/[0.07] border border-white/[0.12] text-white/50 hover:text-white/80 hover:border-white/25 transition-all"
+              className="sm:hidden flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/[0.07] border border-white/[0.12] text-white/50 transition-all mt-0.5"
               aria-label="Share network">
               🔗
             </button>
           )}
-          {hasChosen && (
-            <ActorPicker
-              onSelect={handleActorSelect}
-              loading={fetchingNetwork}
-              defaultSuggestions={suggestions}
-              variant="prominent"
-            />
-          )}
         </div>
+        {/* Row 2 (mobile only): full-width actor picker */}
+        {hasChosen && (
+          <div className="flex sm:hidden mt-2.5">
+            <div className="flex-1">
+              <ActorPicker
+                onSelect={handleActorSelect}
+                loading={fetchingNetwork}
+                defaultSuggestions={suggestions}
+                variant="prominent"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Mobile tab toggle: Constellation / All Collaborators ── */}
