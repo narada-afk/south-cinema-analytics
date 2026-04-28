@@ -181,17 +181,34 @@ export default function InsightsCarousel({ cards }: { cards: InsightCardData[] }
             willChange: 'transform',
           }}
         >
-          {Array.from({ length: tp }, (_, pi) => (
-            <div
-              key={pi}
-              className="min-w-full grid gap-4"
-              style={{ gridTemplateColumns: `repeat(${cpp}, 1fr)` }}
-            >
-              {cards.slice(pi * cpp, (pi + 1) * cpp).map((card, ci) => (
-                <InsightCard key={`${pi}-${ci}`} {...card} />
-              ))}
-            </div>
-          ))}
+          {Array.from({ length: tp }, (_, pi) => {
+            // Lazy render — only mount InsightCard components for the current
+            // page and its immediate neighbours.  All other pages stay in the
+            // flex track as lightweight placeholder divs so translateX maths
+            // remain correct, but their DOM cost is essentially zero.
+            const isNear = Math.abs(pi - safePage) <= 1
+
+            return (
+              <div
+                key={pi}
+                className="min-w-full"
+              >
+                {isNear ? (
+                  <div
+                    className="grid gap-4"
+                    style={{ gridTemplateColumns: `repeat(${cpp}, 1fr)` }}
+                  >
+                    {cards.slice(pi * cpp, (pi + 1) * cpp).map((card, ci) => (
+                      <InsightCard key={`${pi}-${ci}`} {...card} />
+                    ))}
+                  </div>
+                ) : (
+                  /* Same height as a card so track height never collapses */
+                  <div className="h-[220px] sm:h-[250px]" />
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 

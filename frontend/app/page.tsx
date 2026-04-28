@@ -245,21 +245,23 @@ async function fetchPageData(industry: string) {
     const rawInsights = await getInsights(industry)
     if (!rawInsights.length) return { insightCards: FALLBACK_INSIGHT_CARDS }
 
-    // ── Avatar-first prioritisation ───────────────────────────────────────
-    // Score-2 (all displayed actors have avatars) → Score-1 (≥1 avatar).
-    // Score-0 cards are dropped entirely so every card in the carousel
-    // always has at least one recognisable face.
-    // Each tier is independently diversified to preserve industry variety.
+    // ── Avatar-first ordering (no cards dropped) ─────────────────────────
+    // Tier A (both portraits) → Tier B (one portrait) → Tier C (no portrait).
+    // Cards without portraits still show a compelling flat-colour stat card.
+    // All three tiers are industry-diversified independently so language
+    // variety is preserved within each quality tier.
     const tierA = rawInsights.filter(i => insightAvatarScore(i) === 2)
     const tierB = rawInsights.filter(i => insightAvatarScore(i) === 1)
+    const tierC = rawInsights.filter(i => insightAvatarScore(i) === 0)
 
-    // Cap at 90 cards — the backend has 270+ insights but we want a manageable
-    // carousel (≤30 pages of 3 on desktop).  Best cards lead thanks to
-    // avatar-first scoring + industry diversification done above.
+    // No cap — show all insights the backend returns.
+    // The carousel lazy-renders only the visible page ± 1 so DOM cost stays low
+    // regardless of total card count.
     const insights = dedupeConsecutiveTypes([
       ...diversifyInsights(tierA),
       ...diversifyInsights(tierB),
-    ]).slice(0, 90)
+      ...diversifyInsights(tierC),
+    ])
 
     const insightCards: InsightCardData[] = insights.map((insight, i) => {
       const meta = INSIGHT_META[insight.type] ?? { emoji: '🎭', label: 'Cinema Fact' }
