@@ -160,14 +160,16 @@ export default function InsightCard({
         {hasSingle && (
           <div
             className="absolute top-0 right-0 bottom-0 z-[2] pointer-events-none"
-            style={{ width: '40%' }}
+            style={{ width: 'calc(40% + 4px)', marginLeft: '-4px' }}
           >
             <div className="relative w-full h-full">
-              {/* Left-edge colour fade so text never fights the portrait */}
+              {/* Left-edge colour fade — extra 4 px overhang above closes the
+                  subpixel hairline that appears on hover at the 60 % boundary.
+                  Wider gradient (w-28 = 112 px) for a smoother blend. */}
               <div
-                className="absolute inset-y-0 left-0 w-20 z-10"
+                className="absolute inset-y-0 left-0 w-28 z-10"
                 style={{
-                  background: `linear-gradient(to right, ${theme.bg} 0%, transparent 100%)`,
+                  background: `linear-gradient(to right, ${theme.bg} 0%, ${theme.bg}00 100%)`,
                 }}
               />
               {/* Bottom vignette */}
