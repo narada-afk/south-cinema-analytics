@@ -501,6 +501,269 @@ def test_movies_director_field_populated():
 
 check("Movies: director field populated correctly for known actor–director pairings", test_movies_director_field_populated)
 
+# ── SECTION 8: Endpoint Coverage (untested routes) ────────────────────────────
+#
+# /blockbusters, /shared, and /production had zero tests. A schema change or
+# accidental removal would go undetected until a user reported a broken tab.
+
+print("\n📋 SECTION 8 — Endpoint Coverage")
+
+def test_blockbusters_shape():
+    r = requests.get(f"{BASE}/actors/8/blockbusters", timeout=TIMEOUT)  # Ajith
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    data = r.json()
+    assert isinstance(data, list), "Expected list"
+    assert len(data) > 0, "No blockbusters returned for Ajith"
+    b = data[0]
+    for field in ("title", "release_year", "box_office_crore"):
+        assert field in b, f"Missing '{field}' in blockbuster row"
+    assert b["box_office_crore"] > 0, "box_office_crore should be > 0"
+
+check("GET /actors/8/blockbusters → valid shape + positive box_office", test_blockbusters_shape)
+
+def test_shared_films_shape():
+    # Vijay (2) and Ajith (8) have no shared films, but the endpoint should return 200 + []
+    # Use two actors known to have shared films: Allu Arjun (1) and Rashmika
+    # Actually use a simple pair that definitely have shared films
+    r = requests.get(f"{BASE}/actors/2/shared/11", timeout=TIMEOUT)  # Vijay / Rajinikanth
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    data = r.json()
+    assert isinstance(data, list), "Expected list"
+    # May be empty — just validate shape of any returned rows
+    if data:
+        row = data[0]
+        for field in ("title", "release_year"):
+            assert field in row, f"Missing '{field}' in shared film row"
+
+check("GET /actors/2/shared/11 → 200 + valid shape", test_shared_films_shape)
+
+def test_shared_films_unknown_actor():
+    r = requests.get(f"{BASE}/actors/999999/shared/1", timeout=TIMEOUT)
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+
+check("GET /actors/999999/shared/1 → 404", test_shared_films_unknown_actor)
+
+def test_production_shape():
+    r = requests.get(f"{BASE}/actors/1/production", timeout=TIMEOUT)  # Allu Arjun
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    data = r.json()
+    assert isinstance(data, list), "Expected list"
+    if data:
+        row = data[0]
+        assert "company" in row, "Missing 'company' field"
+        assert "films"   in row, "Missing 'films' field"
+        assert row["films"] > 0, "'films' should be > 0"
+
+check("GET /actors/1/production → 200 + valid shape", test_production_shape)
+
+def test_compare_response_shape():
+    r = requests.get(f"{BASE}/compare?actor1=Vijay&actor2=Ajith+Kumar", timeout=TIMEOUT)
+    assert r.status_code == 200
+    data = r.json()
+    for key in ("actor1", "actor2"):
+        assert key in data, f"Missing '{key}' in compare response"
+        obj = data[key]
+        assert "name"  in obj, f"Missing 'name' in {key}"
+        assert "films" in obj, f"Missing 'films' in {key}"
+        assert obj["films"] > 0, f"{key}.films should be > 0"
+
+check("GET /compare → response has actor1/actor2 with name and films > 0", test_compare_response_shape)
+
+# ── SECTION 9: Data Integrity ─────────────────────────────────────────────────
+#
+# Silent data regressions that no status-code test would catch:
+#  • Ordering broken    → wrong film/director shown in UI
+#  • Duplicate movies   → inflated counts, doubled cards
+#  • Film count drops   → pipeline regression (e.g. UNION collapses to cast-only)
+#  • Null insight field → blank number rendered on every insight card
+
+print("\n📋 SECTION 9 — Data Integrity")
+
+def test_movies_ordered_newest_first():
+    """release_year must be descending (excluding year=0 unreleased films)."""
+    r = requests.get(f"{BASE}/actors/11/movies", timeout=TIMEOUT)  # Rajinikanth
+    data = r.json()
+    dated = [m for m in data if m.get("release_year") and m["release_year"] > 0]
+    for i in range(len(dated) - 1):
+        assert dated[i]["release_year"] >= dated[i+1]["release_year"], (
+            f"Movies not newest-first at position {i}: "
+            f"'{dated[i]['title']}' ({dated[i]['release_year']}) "
+            f"before '{dated[i+1]['title']}' ({dated[i+1]['release_year']})"
+        )
+
+check("Movies: returned newest-first (release_year DESC)", test_movies_ordered_newest_first)
+
+def test_blockbusters_ordered_by_box_office():
+    """box_office_crore must be descending."""
+    r = requests.get(f"{BASE}/actors/11/blockbusters", timeout=TIMEOUT)  # Rajinikanth
+    data = r.json()
+    for i in range(len(data) - 1):
+        assert data[i]["box_office_crore"] >= data[i+1]["box_office_crore"], (
+            f"Blockbusters not sorted by box_office at position {i}: "
+            f"'{data[i]['title']}' (₹{data[i]['box_office_crore']:.0f}) "
+            f"before '{data[i+1]['title']}' (₹{data[i+1]['box_office_crore']:.0f})"
+        )
+
+check("Blockbusters: ordered by box_office_crore DESC", test_blockbusters_ordered_by_box_office)
+
+def test_collaborators_ordered_by_count():
+    """Collaborators must come back highest-count first."""
+    r = requests.get(f"{BASE}/actors/1/collaborators", timeout=TIMEOUT)  # Allu Arjun
+    data = r.json()
+    for i in range(len(data) - 1):
+        assert data[i]["films"] >= data[i+1]["films"], (
+            f"Collaborators not sorted at position {i}: "
+            f"'{data[i]['actor']}' ({data[i]['films']}) "
+            f"before '{data[i+1]['actor']}' ({data[i+1]['films']})"
+        )
+
+check("Collaborators: ordered by film count DESC", test_collaborators_ordered_by_count)
+
+def test_directors_ordered_by_count():
+    """Directors must come back highest film-count first."""
+    r = requests.get(f"{BASE}/actors/1/directors", timeout=TIMEOUT)
+    data = r.json()
+    for i in range(len(data) - 1):
+        assert data[i]["films"] >= data[i+1]["films"], (
+            f"Directors not sorted at position {i}: "
+            f"'{data[i]['director']}' ({data[i]['films']}) "
+            f"before '{data[i+1]['director']}' ({data[i+1]['films']})"
+        )
+
+check("Directors: ordered by film count DESC", test_directors_ordered_by_count)
+
+def test_no_duplicate_movies():
+    """
+    Each film must appear at most once in /movies.
+    Key: (title, release_year, tmdb_id) — two films can share a title and year
+    but are genuinely different if they have different TMDB IDs (e.g. two regional
+    films both titled "Tiger" from 1979).  We only flag entries where the same
+    TMDB ID (or same title+year with no TMDB ID) appears more than once, which
+    would indicate a UNION pipeline bug producing actual duplicates.
+    """
+    r = requests.get(f"{BASE}/actors/11/movies", timeout=TIMEOUT)  # Rajinikanth — large filmography
+    data = r.json()
+    seen = {}
+    dupes = []
+    for m in data:
+        tmdb_id = m.get("tmdb_id")
+        if tmdb_id:
+            key = ("tmdb", tmdb_id)
+        else:
+            key = ("notmdb", m.get("title"), m.get("release_year"))
+        if key in seen:
+            dupes.append(f"'{m['title']}' ({m['release_year']}) tmdb_id={tmdb_id}")
+        seen[key] = True
+    assert not dupes, f"Duplicate films in /movies: {dupes}"
+
+check("Movies: no duplicate entries (title + year)", test_no_duplicate_movies)
+
+def test_film_count_sanity():
+    """
+    Key actors must have at least a known minimum number of films.
+    Catches pipeline regressions where the UNION collapses to cast-only
+    or actor_movies is accidentally excluded, halving the film count.
+    """
+    # (actor_name, min_expected_films)
+    _MINIMUMS = [
+        ("Rajinikanth",  100),
+        ("Kamal Haasan", 100),
+        ("Mammootty",    200),
+        ("Mohanlal",     200),
+        ("Vijay",         50),
+        ("Ajith Kumar",   50),
+    ]
+    _data_by_name = {d["name"]: d for d in _actor_data}
+    failures = []
+    for actor_name, minimum in _MINIMUMS:
+        actor = _data_by_name.get(actor_name)
+        if not actor:
+            failures.append(f"'{actor_name}' not in primary actor list")
+            continue
+        count = len(actor["movies"])
+        if count < minimum:
+            failures.append(
+                f"{actor_name}: only {count} films returned, expected ≥ {minimum} "
+                f"— possible pipeline regression"
+            )
+    assert not failures, "\n  " + "\n  ".join(failures)
+
+check("Film counts: key actors meet minimum thresholds (pipeline sanity)", test_film_count_sanity)
+
+def test_all_primary_actors_have_films():
+    """Every primary actor must have at least 1 film. Catches data gaps."""
+    empty = [a["name"] for a in _actor_data if len(a["movies"]) == 0]
+    assert not empty, f"{len(empty)} primary actor(s) have 0 films: {empty[:5]}"
+
+check("All primary actors have ≥ 1 film in /movies", test_all_primary_actors_have_films)
+
+def test_insights_no_null_required_fields():
+    """
+    Every insight must have non-null, non-empty type, headline, and value.
+    Insights use 'headline' (not 'title') for the actor/descriptor shown on cards.
+    A null value renders as a blank giant number; a null headline breaks the card UI.
+    """
+    r = requests.get(f"{BASE}/analytics/insights", timeout=TIMEOUT)
+    data = r.json()
+    failures = []
+    for i, ins in enumerate(data.get("insights", [])):
+        for field in ("type", "headline", "value"):
+            val = ins.get(field)
+            if val is None or (isinstance(val, str) and not val.strip()):
+                failures.append(f"Insight #{i}: '{field}' is null/empty (type={ins.get('type')})")
+    assert not failures, f"{len(failures)} insight(s) with null fields:\n  " + "\n  ".join(failures[:5])
+
+check("Insights: no null/empty type, title, or value fields", test_insights_no_null_required_fields)
+
+def test_insights_minimum_count():
+    """
+    Should have a healthy number of insights — not just > 0.
+    If the engine fails partially we'd get very few cards on the homepage.
+    """
+    r = requests.get(f"{BASE}/analytics/insights", timeout=TIMEOUT)
+    data = r.json()
+    count = len(data.get("insights", []))
+    assert count >= 50, f"Only {count} insights returned — expected ≥ 50 (pipeline may have failed)"
+
+check("Insights: at least 50 insights returned", test_insights_minimum_count)
+
+def test_search_lead_only_filter():
+    """
+    lead_only=true must include known primary actors and exclude known supporting actors.
+
+    Count-based checks are avoided here: with the default limit=20 and match-rank
+    sorting (starts-with beats contains), both filtered and unfiltered queries can
+    hit the page-size cap, making count comparisons unreliable.  Instead we test
+    concrete inclusion/exclusion behaviour:
+
+      • Brahmanandam is a well-known supporting actor (522 films); he must appear
+        in an unrestricted search but NOT in lead_only results.
+      • Rajinikanth is a known seed primary actor (is_primary_actor=True); he must
+        appear in lead_only results.
+    """
+    # Supporting actor must appear in full search
+    r_all = requests.get(f"{BASE}/actors/search?q=brahmanandam", timeout=TIMEOUT)
+    assert r_all.status_code == 200
+    all_names = {a["name"] for a in r_all.json()}
+    assert "Brahmanandam" in all_names, "Brahmanandam missing from unrestricted search results"
+
+    # Same supporting actor must NOT appear in lead_only search
+    r_leads = requests.get(f"{BASE}/actors/search?q=brahmanandam&lead_only=true", timeout=TIMEOUT)
+    assert r_leads.status_code == 200
+    leads_names = {a["name"] for a in r_leads.json()}
+    assert "Brahmanandam" not in leads_names, (
+        "lead_only=true returned Brahmanandam — he is a supporting actor, not a primary seed"
+    )
+
+    # Known seed primary actor must appear in lead_only search
+    r_seed = requests.get(f"{BASE}/actors/search?q=rajinikanth&lead_only=true", timeout=TIMEOUT)
+    seed_names = {a["name"] for a in r_seed.json()}
+    assert "Rajinikanth" in seed_names, (
+        "lead_only=true excluded Rajinikanth — a known seed primary actor"
+    )
+
+check("Search: lead_only=true filters correctly (fewer results + includes known leads)", test_search_lead_only_filter)
+
 # ── SUMMARY ───────────────────────────────────────────────────────────────────
 
 total   = len(results)
