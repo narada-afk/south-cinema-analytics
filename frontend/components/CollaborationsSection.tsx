@@ -8,23 +8,39 @@ import DirectorsSection from './DirectorsSection'
 import ScrollRow from './ScrollRow'
 import { toActorSlug } from '@/lib/api'
 import type { Collaborator, DirectorCollab, Actor, ActorMovie, Blockbuster } from '@/lib/api'
+import {
+  buildBlockbustersCanvas,
+  buildCollaboratorsCanvas,
+  shareCanvasCard,
+} from '@/lib/shareSectionCard'
 
-// ── Reusable section share button ─────────────────────────────────────────────
-// Shares the current actor page URL with a section hash via Web Share API,
-// falling back to clipboard copy on desktop.
+// ── Generic canvas-share button ───────────────────────────────────────────────
+// Runs the supplied `buildFn` to produce a canvas then shares/downloads it.
 
-function SectionShareButton({ sectionId, label }: { sectionId: string; label: string }) {
-  const [state, setState] = useState<'idle' | 'done'>('idle')
+function CanvasShareButton({
+  label,
+  buildFn,
+  filename,
+  actorName,
+  sectionId,
+}: {
+  label: string
+  buildFn: () => Promise<HTMLCanvasElement>
+  filename: string
+  actorName: string
+  sectionId: string
+}) {
+  const [state, setState] = useState<'idle' | 'building' | 'done'>('idle')
 
   async function handleShare() {
-    const url = `${window.location.origin}${window.location.pathname}#${sectionId}`
+    if (state === 'building') return
+    setState('building')
     try {
-      if (navigator.share) {
-        await navigator.share({ title: `CineTrace — ${label}`, url })
-      } else {
-        await navigator.clipboard.writeText(url)
-      }
-    } catch { /* dismissed by user — no action */ }
+      const canvas = await buildFn()
+      await shareCanvasCard(canvas, filename, actorName, `${window.location.pathname}#${sectionId}`)
+    } catch {
+      try { await navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#${sectionId}`) } catch {}
+    }
     setState('done')
     setTimeout(() => setState('idle'), 1800)
   }
@@ -39,6 +55,11 @@ function SectionShareButton({ sectionId, label }: { sectionId: string; label: st
       {state === 'done' ? (
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="3" strokeLinecap="round">
           <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      ) : state === 'building' ? (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5"
+          className="animate-spin">
+          <path d="M12 2a10 10 0 0 1 10 10"/>
         </svg>
       ) : (
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2.5">
@@ -63,6 +84,9 @@ interface CollaborationsSectionProps {
   allFemaleActors: Actor[]
   actorIdMap: Record<string, number>
   actorGender?: 'M' | 'F' | null
+  /** Actor whose page this is — used to label canvas share cards. */
+  actorName?: string
+  actorSlug?: string
 }
 
 export default function CollaborationsSection({
@@ -76,6 +100,8 @@ export default function CollaborationsSection({
   allFemaleActors,
   actorIdMap,
   actorGender,
+  actorName = '',
+  actorSlug = '',
 }: CollaborationsSectionProps) {
   // Build gender maps
   const femaleNames = new Set(allFemaleActors.map(a => a.name.toLowerCase()))
@@ -150,7 +176,20 @@ export default function CollaborationsSection({
         <div id="collaborators" className="flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-white/80 flex-1">{leadLabel}</h2>
-            <SectionShareButton sectionId="collaborators" label={leadLabel} />
+            {actorName && (
+              <CanvasShareButton
+                label={leadLabel}
+                buildFn={() => buildCollaboratorsCanvas({
+                  actorName,
+                  avatarSlug: actorSlug,
+                  sectionLabel: leadLabel.replace(/^[^\w]+/, '').trim(), // strip emoji
+                  collaborators: actresses.map(c => ({ actor: c.actor, films: c.films })),
+                })}
+                filename="cinetrace-collaborators.png"
+                actorName={actorName}
+                sectionId="collaborators"
+              />
+            )}
           </div>
           <ScrollRow>
             <div className="flex gap-5 pb-2 px-1" style={{ width: 'max-content' }}>
@@ -188,11 +227,22 @@ export default function CollaborationsSection({
 
       {/* ── Directors ───────────────────────────────────── */}
       {hasDirs && (
-        <DirectorsSection directors={topDirs} movies={movies} />
+        <DirectorsSection
+          directors={topDirs}
+          movies={movies}
+          actorName={actorName}
+          actorSlug={actorSlug}
+        />
       )}
 
       {/* ── Blockbusters ─────────────────────────────────── */}
-      {hasBlockbusters && <BlockbustersList blockbusters={blockbusters} />}
+      {hasBlockbusters && (
+        <BlockbustersList
+          blockbusters={blockbusters}
+          actorName={actorName}
+          actorSlug={actorSlug}
+        />
+      )}
 
 
     </div>
@@ -219,7 +269,15 @@ function formatCrore(val: number) {
   return `₹${Math.round(val)} Cr`
 }
 
-function BlockbustersList({ blockbusters }: { blockbusters: Blockbuster[] }) {
+function BlockbustersList({
+  blockbusters,
+  actorName = '',
+  actorSlug = '',
+}: {
+  blockbusters: Blockbuster[]
+  actorName?: string
+  actorSlug?: string
+}) {
   const [barsReady, setBarsReady] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const hasAnimated  = useRef(false)
@@ -266,7 +324,23 @@ function BlockbustersList({ blockbusters }: { blockbusters: Blockbuster[] }) {
       <div id="blockbusters" className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold text-white/80 flex-1">💰 Blockbusters</h2>
-          <SectionShareButton sectionId="blockbusters" label="Blockbusters" />
+          {actorName && (
+            <CanvasShareButton
+              label="Blockbusters"
+              buildFn={() => buildBlockbustersCanvas({
+                actorName,
+                avatarSlug: actorSlug,
+                blockbusters: blockbusters.map(b => ({
+                  title: b.title,
+                  release_year: b.release_year,
+                  box_office_crore: b.box_office_crore,
+                })),
+              })}
+              filename="cinetrace-blockbusters.png"
+              actorName={actorName}
+              sectionId="blockbusters"
+            />
+          )}
         </div>
         <p className="text-[11px] text-white/30 leading-snug">
           Box office figures sourced from{' '}

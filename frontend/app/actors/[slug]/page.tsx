@@ -150,6 +150,8 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
             allFemaleActors={allFemaleActors}
             actorIdMap={actorIdMap}
             actorGender={actorGender}
+            actorName={actor.name}
+            actorSlug={actor.name.toLowerCase().replace(/[^a-z0-9]/g, '')}
           />
         )}
 
