@@ -217,7 +217,22 @@ function BlockbustersList({ blockbusters }: { blockbusters: Blockbuster[] }) {
           animation: bb-shimmer 2.5s ease-in-out infinite;
         }
       `}</style>
-      <h2 className="text-lg font-bold text-white/80">💰 Blockbusters</h2>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-lg font-bold text-white/80">💰 Blockbusters</h2>
+        <p className="text-[11px] text-white/30 leading-snug">
+          Box office figures sourced from{' '}
+          <a
+            href="https://www.themoviedb.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-white/50 transition-colors"
+          >
+            TMDB
+          </a>
+          {' '}(community-contributed, worldwide gross converted to ₹ crore).
+          Numbers are approximate and may differ from official figures.
+        </p>
+      </div>
       <div className="flex flex-col gap-2">
         {blockbusters.map((b, i) => {
           const pct       = (b.box_office_crore / maxCrore) * 100
