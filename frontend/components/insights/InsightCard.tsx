@@ -20,6 +20,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { shareInsight } from '@/lib/shareInsight'
+import { shareInsightCard } from '@/lib/shareInsightCard'
 
 // ── Types (unchanged) ─────────────────────────────────────────────────────────
 
@@ -131,14 +132,32 @@ export default function InsightCard({
   const hasSingle = !!imageUrl && !hasDuo
   const hasImage  = hasSingle || hasDuo
 
+  // Extract avatar slugs from the image URL paths (/avatars/{slug}.png)
+  const avatarSlug          = imageUrl?.replace('/avatars/', '').replace('.png', '')
+  const secondaryAvatarSlug = secondaryImageUrl?.replace('/avatars/', '').replace('.png', '')
+
   async function handleShare(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    const r = await shareInsight({ href, actorName, statValue: value })
-    if (r.ok) {
-      setShareState('copied')
-      setTimeout(() => setShareState('idle'), 1800)
+
+    setShareState('copied')   // optimistic — show ✓ while canvas builds
+
+    // Try canvas image share first (mobile: native share sheet with PNG)
+    // Falls back to URL clipboard copy if canvas or share API is unavailable
+    const canvasData = type && title && footer
+    const r = canvasData
+      ? await shareInsightCard(
+          { type, title, value, footer, actorName, avatarSlug, secondaryActorName, secondaryAvatarSlug },
+          href ?? '#',
+        )
+      : await shareInsight({ href: href ?? '#', actorName, statValue: value })
+
+    if (!r.ok) {
+      // Canvas failed — fall back to plain URL share
+      await shareInsight({ href: href ?? '#', actorName, statValue: value })
     }
+
+    setTimeout(() => setShareState('idle'), 1800)
   }
 
   return (

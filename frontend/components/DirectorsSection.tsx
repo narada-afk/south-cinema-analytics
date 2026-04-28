@@ -5,6 +5,32 @@ import Image from 'next/image'
 import ScrollRow from './ScrollRow'
 import type { DirectorCollab, ActorMovie } from '@/lib/api'
 
+// ── Inline share button (avoids a separate import) ────────────────────────────
+function SectionShareButton({ sectionId, label }: { sectionId: string; label: string }) {
+  const [state, setState] = useState<'idle' | 'done'>('idle')
+  async function handleShare() {
+    const url = `${window.location.origin}${window.location.pathname}#${sectionId}`
+    try {
+      if (navigator.share) { await navigator.share({ title: `CineTrace — ${label}`, url }) }
+      else { await navigator.clipboard.writeText(url) }
+    } catch { /* dismissed */ }
+    setState('done'); setTimeout(() => setState('idle'), 1800)
+  }
+  return (
+    <button onClick={handleShare} aria-label={`Share ${label}`}
+      className="flex items-center justify-center w-7 h-7 rounded-full opacity-50 hover:opacity-100 transition-opacity duration-150 flex-shrink-0"
+      style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
+      {state === 'done'
+        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2.5">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>}
+    </button>
+  )
+}
+
 interface DirectorsSectionProps {
   directors: DirectorCollab[]
   movies: ActorMovie[]
@@ -38,8 +64,11 @@ export default function DirectorsSection({ directors, movies }: DirectorsSection
   const isOpen = selected !== null
 
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="text-lg font-bold text-white/80">🎬 Directors Worked With</h2>
+    <div id="directors" className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-bold text-white/80 flex-1">🎬 Directors Worked With</h2>
+        <SectionShareButton sectionId="directors" label="Directors Worked With" />
+      </div>
 
       {/* Chips */}
       <div className="flex flex-wrap gap-2">

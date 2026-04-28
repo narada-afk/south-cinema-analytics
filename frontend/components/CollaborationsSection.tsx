@@ -9,6 +9,48 @@ import ScrollRow from './ScrollRow'
 import { toActorSlug } from '@/lib/api'
 import type { Collaborator, DirectorCollab, Actor, ActorMovie, Blockbuster } from '@/lib/api'
 
+// ── Reusable section share button ─────────────────────────────────────────────
+// Shares the current actor page URL with a section hash via Web Share API,
+// falling back to clipboard copy on desktop.
+
+function SectionShareButton({ sectionId, label }: { sectionId: string; label: string }) {
+  const [state, setState] = useState<'idle' | 'done'>('idle')
+
+  async function handleShare() {
+    const url = `${window.location.origin}${window.location.pathname}#${sectionId}`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `CineTrace — ${label}`, url })
+      } else {
+        await navigator.clipboard.writeText(url)
+      }
+    } catch { /* dismissed by user — no action */ }
+    setState('done')
+    setTimeout(() => setState('idle'), 1800)
+  }
+
+  return (
+    <button
+      onClick={handleShare}
+      aria-label={`Share ${label}`}
+      className="flex items-center justify-center w-7 h-7 rounded-full opacity-50 hover:opacity-100 transition-opacity duration-150 flex-shrink-0"
+      style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+    >
+      {state === 'done' ? (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="3" strokeLinecap="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      ) : (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2.5">
+          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+      )}
+    </button>
+  )
+}
+
 interface CollaborationsSectionProps {
   collaborators: Collaborator[]
   leadCollaborators: Collaborator[]
@@ -105,8 +147,11 @@ export default function CollaborationsSection({
 
       {/* ── Lead Actresses / Lead Actors ────────────────── */}
       {hasActresses && (
-        <div className="flex flex-col gap-4">
-          <h2 className="text-lg font-bold text-white/80">{leadLabel}</h2>
+        <div id="collaborators" className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-white/80 flex-1">{leadLabel}</h2>
+            <SectionShareButton sectionId="collaborators" label={leadLabel} />
+          </div>
           <ScrollRow>
             <div className="flex gap-5 pb-2 px-1" style={{ width: 'max-content' }}>
               {actresses.map(c => {
@@ -148,6 +193,7 @@ export default function CollaborationsSection({
 
       {/* ── Blockbusters ─────────────────────────────────── */}
       {hasBlockbusters && <BlockbustersList blockbusters={blockbusters} />}
+
 
     </div>
   )
@@ -217,8 +263,11 @@ function BlockbustersList({ blockbusters }: { blockbusters: Blockbuster[] }) {
           animation: bb-shimmer 2.5s ease-in-out infinite;
         }
       `}</style>
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-bold text-white/80">💰 Blockbusters</h2>
+      <div id="blockbusters" className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-bold text-white/80 flex-1">💰 Blockbusters</h2>
+          <SectionShareButton sectionId="blockbusters" label="Blockbusters" />
+        </div>
         <p className="text-[11px] text-white/30 leading-snug">
           Box office figures sourced from{' '}
           <a
