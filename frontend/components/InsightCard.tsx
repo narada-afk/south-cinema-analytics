@@ -61,6 +61,7 @@ function mapToCardProps(data: InsightCardData): InsightCardProps {
     imageUrl:            a1?.avatarSlug ? `/avatars/${a1.avatarSlug}.png` : undefined,
     actorName:           a1?.name,
     secondaryImageUrl:   !isDirector && a2?.avatarSlug ? `/avatars/${a2.avatarSlug}.png` : undefined,
+    secondaryActorName:  a2?.name,
     href:                data.href,
   }
 }

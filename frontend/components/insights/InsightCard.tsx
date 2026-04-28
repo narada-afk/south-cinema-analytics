@@ -33,16 +33,17 @@ export type InsightType =
   | string
 
 export interface InsightCardProps {
-  type:               InsightType
-  title:              string
-  value:              string | number
-  label:              string
-  footer?:            string
-  imageUrl?:          string
-  actorName?:         string
-  secondaryImageUrl?: string
-  extraMeta?:         unknown
-  href?:              string
+  type:                InsightType
+  title:               string
+  value:               string | number
+  label:               string
+  footer?:             string
+  imageUrl?:           string
+  actorName?:          string
+  secondaryImageUrl?:  string
+  secondaryActorName?: string   // name of the second person in a duo card
+  extraMeta?:          unknown
+  href?:               string
 }
 
 // ── Theme — flat solid backgrounds, lighter accent for type labels ─────────────
@@ -103,6 +104,7 @@ export default function InsightCard({
   imageUrl,
   actorName,
   secondaryImageUrl,
+  secondaryActorName,
   href = '#',
 }: InsightCardProps) {
   const [hovered,    setHovered]    = useState(false)
@@ -191,37 +193,66 @@ export default function InsightCard({
           </div>
         )}
 
-        {/* ── Duo portraits — overlapping circles, bottom-right ────────────── */}
+        {/* ── Duo portraits — overlapping circles with name labels ─────────── */}
         {hasDuo && (
-          <div className="absolute bottom-0 right-0 z-[2] pointer-events-none flex items-end pb-3 pr-3">
-            {[
-              { src: imageUrl!,          name: actorName ?? '', z: 2 },
-              { src: secondaryImageUrl!, name: '',              z: 1 },
-            ].map((a, i) => (
-              <div
-                key={i}
-                className="relative rounded-full overflow-hidden flex-shrink-0"
-                style={{
-                  width:      92,
-                  height:     92,
-                  marginLeft: i === 0 ? 0 : -24,
-                  zIndex:     a.z,
-                  border:     '2.5px solid rgba(0,0,0,0.45)',
-                  boxShadow:  '0 4px 18px rgba(0,0,0,0.60)',
-                  transform:  hovered ? 'scale(1.06)' : 'scale(1)',
-                  transition: `transform ${320 + i * 40}ms ease`,
-                }}
-              >
-                <Image
-                  src={a.src}
-                  alt={a.name || 'Actor portrait'}
-                  fill
-                  sizes="92px"
-                  className="object-cover object-top"
-                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                />
+          <div className="absolute bottom-0 right-0 z-[2] pointer-events-none flex flex-col items-end">
+
+            {/* First-name labels — floated above the circles */}
+            {(actorName || secondaryActorName) && (
+              <div className="flex items-center gap-1.5 pr-4 mb-1.5">
+                {actorName && (
+                  <span
+                    className="text-[9px] font-semibold tracking-wide truncate max-w-[60px]"
+                    style={{ color: 'rgba(255,255,255,0.70)', textShadow: '0 1px 4px rgba(0,0,0,0.95)' }}
+                  >
+                    {actorName.split(' ')[0]}
+                  </span>
+                )}
+                {secondaryActorName && (
+                  <>
+                    <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 8 }}>×</span>
+                    <span
+                      className="text-[9px] font-semibold tracking-wide truncate max-w-[60px]"
+                      style={{ color: 'rgba(255,255,255,0.70)', textShadow: '0 1px 4px rgba(0,0,0,0.95)' }}
+                    >
+                      {secondaryActorName.split(' ')[0]}
+                    </span>
+                  </>
+                )}
               </div>
-            ))}
+            )}
+
+            {/* Overlapping circles — 110 px (up from 92 px) */}
+            <div className="flex items-end pb-3 pr-3">
+              {[
+                { src: imageUrl!,          name: actorName ?? '', z: 2 },
+                { src: secondaryImageUrl!, name: '',              z: 1 },
+              ].map((a, i) => (
+                <div
+                  key={i}
+                  className="relative rounded-full overflow-hidden flex-shrink-0"
+                  style={{
+                    width:      110,
+                    height:     110,
+                    marginLeft: i === 0 ? 0 : -28,
+                    zIndex:     a.z,
+                    border:     '2.5px solid rgba(0,0,0,0.45)',
+                    boxShadow:  '0 4px 18px rgba(0,0,0,0.60)',
+                    transform:  hovered ? 'scale(1.06)' : 'scale(1)',
+                    transition: `transform ${320 + i * 40}ms ease`,
+                  }}
+                >
+                  <Image
+                    src={a.src}
+                    alt={a.name || 'Actor portrait'}
+                    fill
+                    sizes="110px"
+                    className="object-cover object-top"
+                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
