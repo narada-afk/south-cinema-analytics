@@ -10,7 +10,7 @@
 const PHRASES: Record<string, readonly string[]> = {
   cross_industry: [
     'Across every border',
-    'One face, five worlds',
+    'One face, every world',
     'Rare crossover run',
   ],
   collab_shock: [

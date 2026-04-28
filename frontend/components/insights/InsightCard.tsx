@@ -181,7 +181,7 @@ export default function InsightCard({
                 src={imageUrl!}
                 alt={actorName ?? 'Actor portrait'}
                 fill
-                sizes="(max-width: 640px) 130px, 155px"
+                sizes="(max-width: 560px) 40vw, (max-width: 900px) 22vw, 15vw"
                 className="object-cover object-top"
                 style={{
                   transform:  hovered ? 'scale(1.04)' : 'scale(1.0)',

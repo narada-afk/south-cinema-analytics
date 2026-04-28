@@ -24,9 +24,13 @@ const nextConfig = {
 
     // Declare the exact sizes we actually render so Next.js picks the
     // nearest bucket instead of up-scaling to a needlessly large image.
-    // Covers: 92px duo circles, 130-155px single portraits, 160px hero avatar,
+    // Covers: 110px duo circles, 130-165px single portraits, 160px hero avatar,
     //         40-56px ActorAvatar chips, 100px film poster thumbnails.
-    imageSizes: [48, 64, 96, 128, 160],
+    //
+    // 256 and 384 fill the critical gap between 160 and 640: a 155px portrait
+    // on a 2× retina screen needs ~310px. Without these buckets, the browser
+    // would receive either 160px (too small → blurry) or skip to 640px (wasteful).
+    imageSizes: [48, 64, 96, 128, 160, 256, 384],
     deviceSizes: [640, 750, 828, 1080, 1200],
 
     remotePatterns: [
