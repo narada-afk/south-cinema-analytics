@@ -74,6 +74,20 @@ function getTheme(type: string): CardTheme {
   return THEMES[type] ?? FALLBACK_THEME
 }
 
+// ── Short display name — skips leading single-letter initials ─────────────────
+// "I. V. Sasi"       → "Sasi"
+// "S. P. Muthuraman" → "Muthuraman"
+// "K. Balachander"   → "Balachander"
+// "Mammootty"        → "Mammootty"
+// "Jr. NTR"          → "NTR"
+function shortName(full: string): string {
+  if (!full) return ''
+  const parts = full.trim().split(/\s+/)
+  // Find first word longer than 2 real characters (strip dots before checking)
+  const meaningful = parts.find(p => p.replace(/\./g, '').length > 2)
+  return meaningful ?? parts[parts.length - 1] ?? full
+}
+
 // ── Stat parser ───────────────────────────────────────────────────────────────
 
 function splitStat(v: string | number): { main: string; unit: string | null } {
@@ -195,63 +209,50 @@ export default function InsightCard({
           </div>
         )}
 
-        {/* ── Duo portraits — overlapping circles with name labels ─────────── */}
+        {/* ── Duo portraits — each avatar gets its own name label above it ─── */}
         {hasDuo && (
-          <div className="absolute bottom-0 right-0 z-[2] pointer-events-none flex flex-col items-end">
-
-            {/* First-name labels — floated above the circles */}
-            {(actorName || secondaryActorName) && (
-              <div className="flex items-center gap-1.5 pr-4 mb-1.5">
-                {actorName && (
-                  <span
-                    className="text-[9px] font-semibold tracking-wide truncate max-w-[60px]"
-                    style={{ color: 'rgba(255,255,255,0.70)', textShadow: '0 1px 4px rgba(0,0,0,0.95)' }}
-                  >
-                    {actorName.split(' ')[0]}
-                  </span>
-                )}
-                {secondaryActorName && (
-                  <>
-                    <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 8 }}>×</span>
-                    <span
-                      className="text-[9px] font-semibold tracking-wide truncate max-w-[60px]"
-                      style={{ color: 'rgba(255,255,255,0.70)', textShadow: '0 1px 4px rgba(0,0,0,0.95)' }}
-                    >
-                      {secondaryActorName.split(' ')[0]}
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Overlapping circles — 110 px (up from 92 px) */}
-            <div className="flex items-end pb-3 pr-3">
+          <div className="absolute bottom-0 right-0 z-[2] pointer-events-none pb-3 pr-3">
+            <div className="flex items-end">
               {[
-                { src: imageUrl!,          name: actorName ?? '', z: 2 },
-                { src: secondaryImageUrl!, name: '',              z: 1 },
+                { src: imageUrl!,          name: actorName ?? '',          z: 2 },
+                { src: secondaryImageUrl!, name: secondaryActorName ?? '', z: 1 },
               ].map((a, i) => (
+                // Each column = name label + circle, overlapping the previous by 28 px.
+                // items-center centres the name directly above its own circle.
                 <div
                   key={i}
-                  className="relative rounded-full overflow-hidden flex-shrink-0"
-                  style={{
-                    width:      110,
-                    height:     110,
-                    marginLeft: i === 0 ? 0 : -28,
-                    zIndex:     a.z,
-                    border:     '2.5px solid rgba(0,0,0,0.45)',
-                    boxShadow:  '0 4px 18px rgba(0,0,0,0.60)',
-                    transform:  hovered ? 'scale(1.06)' : 'scale(1)',
-                    transition: `transform ${320 + i * 40}ms ease`,
-                  }}
+                  className="flex flex-col items-center flex-shrink-0"
+                  style={{ marginLeft: i === 0 ? 0 : -28, zIndex: a.z }}
                 >
-                  <Image
-                    src={a.src}
-                    alt={a.name || 'Actor portrait'}
-                    fill
-                    sizes="110px"
-                    className="object-cover object-top"
-                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                  />
+                  {/* Name — skips initials so "I. V. Sasi" → "Sasi" */}
+                  <span
+                    className="text-[9px] font-semibold mb-1.5 truncate max-w-[72px] text-center"
+                    style={{ color: 'rgba(255,255,255,0.72)', textShadow: '0 1px 4px rgba(0,0,0,0.95)' }}
+                  >
+                    {shortName(a.name)}
+                  </span>
+
+                  {/* Circle */}
+                  <div
+                    className="relative rounded-full overflow-hidden"
+                    style={{
+                      width:      110,
+                      height:     110,
+                      border:     '2.5px solid rgba(0,0,0,0.45)',
+                      boxShadow:  '0 4px 18px rgba(0,0,0,0.60)',
+                      transform:  hovered ? 'scale(1.06)' : 'scale(1)',
+                      transition: `transform ${320 + i * 40}ms ease`,
+                    }}
+                  >
+                    <Image
+                      src={a.src}
+                      alt={a.name || 'Actor portrait'}
+                      fill
+                      sizes="110px"
+                      className="object-cover object-top"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
