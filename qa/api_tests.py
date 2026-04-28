@@ -764,6 +764,266 @@ def test_search_lead_only_filter():
 
 check("Search: lead_only=true filters correctly (fewer results + includes known leads)", test_search_lead_only_filter)
 
+# ── SECTION 10: Actress & Gender-Specific Data ────────────────────────────────
+#
+# Every data test in Sections 7-9 used male actors.  Actress pages use a
+# different collaborator pipeline (show male primary co-stars instead of heroines)
+# and their blockbusters / director data comes from the same UNION query —
+# but bugs in gender-branch logic would be invisible without explicit tests.
+#
+# Actor IDs used (stable — from the primary/network actress set):
+#   336 = Nayanthara   474 = Anushka Shetty   477 = Samantha Ruth Prabhu
+
+print("\n📋 SECTION 10 — Actress & Gender-Specific Data")
+
+def test_actress_has_films():
+    """A known primary actress must have a non-empty filmography."""
+    r = requests.get(f"{BASE}/actors/336/movies", timeout=TIMEOUT)  # Nayanthara
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    data = r.json()
+    assert len(data) >= 10, (
+        f"Nayanthara: only {len(data)} films returned — expected ≥ 10"
+    )
+    # Every entry must have at minimum title and release_year
+    for m in data:
+        assert m.get("title"),        "Film entry missing 'title'"
+        assert "release_year" in m,   "Film entry missing 'release_year'"
+
+check("Actress (Nayanthara): has ≥ 10 films with valid shape", test_actress_has_films)
+
+def test_actress_blockbusters():
+    """A commercially successful actress must have blockbusters returned."""
+    r = requests.get(f"{BASE}/actors/474/blockbusters", timeout=TIMEOUT)  # Anushka Shetty
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    data = r.json()
+    assert len(data) >= 1, "Anushka Shetty: no blockbusters returned — expected ≥ 1"
+    b = data[0]
+    assert b.get("box_office_crore", 0) > 0, "Top blockbuster has zero box_office_crore"
+
+check("Actress (Anushka Shetty): blockbusters endpoint returns data", test_actress_blockbusters)
+
+def test_actress_collaborators_are_male():
+    """
+    On an actress's page, the collaborators list should skew heavily male
+    (since South Indian cinema pairs one lead actress with multiple male leads).
+    We fetch collaborators for Anushka Shetty and assert that at least one
+    known male actor (Brahmanandam, Prabhas, Allu Arjun) appears — confirming
+    the general collaborator pipeline works for female actors too.
+    """
+    r = requests.get(f"{BASE}/actors/474/collaborators", timeout=TIMEOUT)  # Anushka Shetty
+    assert r.status_code == 200
+    names = {c["actor"] for c in r.json()}
+    known_male_costar = {"Brahmanandam", "Prabhas", "Allu Arjun", "Jr. NTR", "Ram Charan"}
+    found = names & known_male_costar
+    assert found, (
+        f"Anushka Shetty collaborators contain none of the expected male co-stars. "
+        f"Got: {list(names)[:10]}"
+    )
+
+check("Actress (Anushka Shetty): collaborators include known male co-stars", test_actress_collaborators_are_male)
+
+def test_actress_directors():
+    """Directors endpoint works for female actors."""
+    r = requests.get(f"{BASE}/actors/336/directors", timeout=TIMEOUT)  # Nayanthara
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list), "Expected list from /directors"
+    assert len(data) >= 1, "Nayanthara: no directors returned"
+    d = data[0]
+    assert d.get("director"), "Director entry missing 'director' name"
+    assert d.get("films", 0) >= 1, "Director entry has films < 1"
+
+check("Actress (Nayanthara): directors endpoint returns valid data", test_actress_directors)
+
+# ── SECTION 11: Previously Untested Endpoints ─────────────────────────────────
+#
+# Endpoints confirmed present in the router but not yet explicitly shape-tested:
+#   • /heroine-collaborators   • /directors (shape only, not via consistency check)
+#   • empty-state blockbusters (actor with no box_office data)
+
+print("\n📋 SECTION 11 — Previously Untested Endpoints")
+
+def test_heroine_collaborators_shape():
+    """
+    /heroine-collaborators returns female co-stars for a male actor.
+    Verified against Allu Arjun (id=1) — known to have worked with
+    Rashmika Mandanna, Anushka Shetty, Pooja Hegde etc.
+    """
+    r = requests.get(f"{BASE}/actors/1/heroine-collaborators", timeout=TIMEOUT)
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    data = r.json()
+    assert isinstance(data, list), "Expected list"
+    assert len(data) >= 1, "Allu Arjun: no heroine collaborators returned"
+    row = data[0]
+    assert "actor"    in row, "Missing 'actor' field"
+    assert "films"    in row, "Missing 'films' field"
+    assert "actor_id" in row, "Missing 'actor_id' field"
+    assert row["films"] >= 1, "'films' should be ≥ 1"
+
+check("GET /actors/1/heroine-collaborators → valid shape + ≥ 1 result", test_heroine_collaborators_shape)
+
+def test_heroine_collaborators_known_actress():
+    """Rashmika Mandanna must appear in Allu Arjun's heroine-collaborators (4 shared films)."""
+    r = requests.get(f"{BASE}/actors/1/heroine-collaborators", timeout=TIMEOUT)
+    data = r.json()
+    names = {row["actor"] for row in data}
+    assert "Rashmika Mandanna" in names, (
+        f"Rashmika Mandanna missing from Allu Arjun's heroine-collaborators. Got: {list(names)[:10]}"
+    )
+
+check("Heroine-collaborators: Rashmika Mandanna in Allu Arjun's list", test_heroine_collaborators_known_actress)
+
+def test_directors_endpoint_shape():
+    """
+    /directors is only tested indirectly via consistency checks.
+    Explicitly verify shape here so a schema rename would be caught.
+    """
+    r = requests.get(f"{BASE}/actors/11/directors", timeout=TIMEOUT)  # Rajinikanth
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    data = r.json()
+    assert isinstance(data, list), "Expected list"
+    assert len(data) >= 1, "Rajinikanth: no directors returned"
+    d = data[0]
+    assert "director" in d, "Missing 'director' field"
+    assert "films"    in d, "Missing 'films' field"
+    assert isinstance(d["director"], str) and d["director"], "'director' must be non-empty string"
+    assert d["films"] >= 1, "'films' must be ≥ 1"
+
+check("GET /actors/11/directors → valid shape with required fields", test_directors_endpoint_shape)
+
+def test_empty_blockbusters_no_crash():
+    """
+    An actor with no box-office data must return 200 + empty list, not 500.
+    Raj B Shetty (id=1814) is a confirmed primary actor with no box_office entries.
+    """
+    r = requests.get(f"{BASE}/actors/1814/blockbusters", timeout=TIMEOUT)  # Raj B Shetty
+    assert r.status_code == 200, f"Expected 200, got {r.status_code} (empty state should not 500)"
+    data = r.json()
+    assert isinstance(data, list), "Expected list (empty)"
+    assert len(data) == 0, f"Expected empty list, got {len(data)} entries"
+
+check("Empty-state: actor with no box_office returns 200 + []", test_empty_blockbusters_no_crash)
+
+def test_heroine_collaborators_unknown_actor():
+    """Unknown actor must return 404, not 500."""
+    r = requests.get(f"{BASE}/actors/999999/heroine-collaborators", timeout=TIMEOUT)
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+
+check("GET /actors/999999/heroine-collaborators → 404", test_heroine_collaborators_unknown_actor)
+
+# ── SECTION 12: Insight Data Validity ─────────────────────────────────────────
+#
+# Insights drive the homepage cards.  A structurally-valid insight that references
+# a deleted actor (bad actor_id) or has mismatched arrays would cause broken links
+# and blank avatars.  We also check numeric ranges (confidence 0–1) and that
+# all industry values are recognisable strings.
+
+print("\n📋 SECTION 12 — Insight Data Validity")
+
+_KNOWN_INDUSTRIES = {"Tamil", "Telugu", "Malayalam", "Kannada", "Hindi", "English", ""}
+
+def _fetch_insights_once():
+    r = requests.get(f"{BASE}/analytics/insights", timeout=TIMEOUT)
+    assert r.status_code == 200
+    return r.json().get("insights", [])
+
+_insights = _fetch_insights_once()
+
+def test_insight_actor_ids_valid():
+    """
+    Every actor_id referenced in insights must resolve to a real actor (200).
+    Checking all 124+ unique IDs in one shot would be slow; we verify a
+    deterministic sample of 15 IDs covering different insight types.
+    """
+    import random
+    all_ids = []
+    for ins in _insights:
+        all_ids.extend(ins.get("actor_ids", []))
+    unique_ids = list(dict.fromkeys(all_ids))   # preserve order, deduplicate
+    sample = unique_ids[:15]                    # first 15 — deterministic, no randomness
+    bad = []
+    for aid in sample:
+        r = requests.get(f"{BASE}/actors/{aid}", timeout=TIMEOUT)
+        if r.status_code != 200:
+            bad.append(f"actor_id={aid} → HTTP {r.status_code}")
+    assert not bad, f"Insight actor_ids that don't resolve: {bad}"
+
+check("Insights: sampled actor_ids all resolve to valid actors", test_insight_actor_ids_valid)
+
+def test_insight_arrays_aligned():
+    """
+    'actors' (name list) and 'actor_ids' (id list) must have the same length.
+    A mismatch means the UI would render the wrong name next to the wrong avatar.
+
+    Exceptions (by design — directors appear in 'actors' but lack actor_ids):
+      • director_box_office: actors=[director_name], actor_ids=[] — director has no actor_id
+      • director_loyalty:    actors=[actor, director], actor_ids=[actor_id] — director excluded
+    All other insight types must have perfectly aligned arrays.
+    """
+    _SKIP_TYPES = {"director_box_office", "director_loyalty"}
+    mismatches = []
+    for i, ins in enumerate(_insights):
+        if ins.get("type") in _SKIP_TYPES:
+            continue
+        actors    = ins.get("actors",    [])
+        actor_ids = ins.get("actor_ids", [])
+        if len(actors) != len(actor_ids):
+            mismatches.append(
+                f"Insight #{i} (type={ins.get('type')}): "
+                f"actors={len(actors)} vs actor_ids={len(actor_ids)}"
+            )
+    assert not mismatches, f"{len(mismatches)} mismatched insight(s):\n  " + "\n  ".join(mismatches[:5])
+
+check("Insights: actors[] and actor_ids[] have equal length", test_insight_arrays_aligned)
+
+def test_insight_confidence_range():
+    """confidence must be a float in [0.0, 1.0] — never negative or > 1."""
+    bad = []
+    for i, ins in enumerate(_insights):
+        c = ins.get("confidence")
+        if c is None:
+            bad.append(f"Insight #{i}: confidence is null")
+        elif not (0.0 <= c <= 1.0):
+            bad.append(f"Insight #{i}: confidence={c} out of range [0, 1]")
+    assert not bad, f"{len(bad)} insight(s) with invalid confidence:\n  " + "\n  ".join(bad[:5])
+
+check("Insights: confidence values are in [0.0, 1.0]", test_insight_confidence_range)
+
+def test_insight_industry_valid():
+    """
+    industry field must be a non-null string for all actor-centric insight types.
+
+    Exception: director_box_office insights have industry=null by design —
+    directors like S. S. Rajamouli or Mani Ratnam work across multiple industries
+    so no single industry can be assigned.  All other types must have a string value.
+    """
+    bad = []
+    for i, ins in enumerate(_insights):
+        if ins.get("type") == "director_box_office":
+            continue   # directors are cross-industry by nature
+        ind = ins.get("industry")
+        if ind is None:
+            bad.append(f"Insight #{i} (type={ins.get('type')}): industry is null")
+        elif not isinstance(ind, str):
+            bad.append(f"Insight #{i}: industry is not a string: {ind!r}")
+    assert not bad, f"{len(bad)} insight(s) with invalid industry:\n  " + "\n  ".join(bad[:5])
+
+check("Insights: industry field is a non-null string on all insights", test_insight_industry_valid)
+
+def test_insight_subtext_present():
+    """
+    subtext is the supporting copy shown under each insight card.
+    A missing subtext leaves a blank card with no context — catch it early.
+    """
+    bad = []
+    for i, ins in enumerate(_insights):
+        sub = ins.get("subtext")
+        if sub is None or (isinstance(sub, str) and not sub.strip()):
+            bad.append(f"Insight #{i} (type={ins.get('type')}): subtext is null/empty")
+    assert not bad, f"{len(bad)} insight(s) missing subtext:\n  " + "\n  ".join(bad[:5])
+
+check("Insights: subtext present on all insight cards", test_insight_subtext_present)
+
 # ── SUMMARY ───────────────────────────────────────────────────────────────────
 
 total   = len(results)
