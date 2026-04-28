@@ -1,253 +1,229 @@
 'use client'
 
 /**
- * InsightsCarousel — auto-scrolling carousel with Netflix-style nav buttons.
+ * InsightsCarousel — paginated slide carousel.
  *
  * Behaviour
- * - Slow, continuous left→right auto-scroll using requestAnimationFrame
- * - Pauses on hover / focus / tab-hidden / off-screen (same as before)
- * - Left / right chevron buttons jump 3 cards at a time with smooth scroll
- * - Buttons fade in when the carousel is hovered; always visible at low opacity
- * - Clicking a button pauses auto-scroll for 800 ms so RAF doesn't fight the
- *   browser's smooth-scroll animation
- * - Infinite loop: cards are tripled; left-wrap guard prevents going past 0
+ * ─────────
+ * • Shows 3 cards / 2 cards / 1 card per page (desktop / tablet / mobile)
+ *   Breakpoints are measured from the container width via ResizeObserver.
+ * • Auto-advances every AUTO_MS ms with a smooth cubic-bezier slide.
+ * • Left / right chevron buttons (appear on hover) navigate one page at a time.
+ * • Touch swipe left/right does the same; vertical page scrolls are ignored.
+ * • Dot / pill indicators below show position; any manual nav resets the timer.
+ * • Infinite loop — last page wraps to first.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import InsightCard, { type InsightCardData } from '@/components/InsightCard'
 
-const CARD_W   = 380
-const GAP      = 16   // gap-4
-const SPEED    = 0.22 // px/ms → ~220 px/s ≈ one card every 1.5 s — visibly drifting
-const JUMP     = 2    // cards per button click
+const AUTO_MS  = 4500   // ms each page is visible before auto-advance
+const SLIDE_MS = 480    // CSS transition duration (ms)
 
-// Responsive card width:
-//   mobile  — the carousel breaks out of page padding (handled by -mx-6 in page.tsx),
-//             so 100vw is the true container. We subtract 56px: 24px left-indent
-//             (pl-6 on the flex row) + 16px gap + 16px right-peek for scroll hint.
-//   desktop — fixed 380 px (page padding is intact so no break-out)
-// clamp(min, preferred, max) ensures it never shrinks below 260 px or grows past 380 px
-const CARD_WIDTH_CSS = 'clamp(260px, calc(100vw - 56px), 380px)'
+// Shared button style — matches previous nav button look
+const BTN: React.CSSProperties = {
+  background:     'rgba(10,10,20,0.82)',
+  border:         '1px solid rgba(255,255,255,0.13)',
+  backdropFilter: 'blur(10px)',
+  boxShadow:      '0 4px 20px rgba(0,0,0,0.55)',
+}
 
 export default function InsightsCarousel({ cards }: { cards: InsightCardData[] }) {
-  const scrollRef          = useRef<HTMLDivElement>(null)
-  const hoverPausedRef     = useRef(false)
-  const viewPausedRef      = useRef(false)
-  const isIntersectingRef  = useRef(true)
-  const manualScrollingRef = useRef(false)   // prevents loop-reset during smooth scroll
-  const touchActiveRef     = useRef(false)   // prevents loop-reset while finger is on screen
-  // Touch-direction detection — only pause RAF for horizontal swipes, not vertical page scrolls
-  const touchStartXRef     = useRef(0)
-  const touchStartYRef     = useRef(0)
-  const touchDirectionRef  = useRef<'h' | 'v' | null>(null)
+  const wrapRef  = useRef<HTMLDivElement>(null)
 
-  const items = cards.length > 0 ? [...cards, ...cards, ...cards] : cards
+  // Stable refs — readable from interval callbacks without stale closures
+  const cppRef   = useRef(3)       // cards per page
+  const pageRef  = useRef(0)       // current page index
+  const lockRef  = useRef(false)   // animation lock — prevents double-fire
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // React state — drives re-renders
+  const [cpp,  setCpp]  = useState(3)
+  const [page, setPage] = useState(0)
+
+  // ── Responsive cards-per-page ─────────────────────────────────────────────────
   useEffect(() => {
-    const el = scrollRef.current
-    if (!el || items.length === 0) return
-
-    const setWidth = el.scrollWidth / 3
-    el.scrollLeft = Math.random() * setWidth
-
-    let rafId: number
-    let prev: DOMHighResTimeStamp | null = null
-
-    function tick(now: DOMHighResTimeStamp) {
-      const dt = prev != null ? now - prev : 0
-      prev = now
-
-      if (!hoverPausedRef.current && !viewPausedRef.current && el) {
-        el.scrollLeft += SPEED * dt
-        // Only reset the loop seam when neither a smooth-scroll nor a touch
-        // gesture is in progress (avoids fighting the browser's native scroll)
-        if (!manualScrollingRef.current && !touchActiveRef.current && el.scrollLeft >= setWidth) {
-          el.scrollLeft -= setWidth
-        }
-      }
-
-      rafId = requestAnimationFrame(tick)
+    function recalc() {
+      const w = wrapRef.current?.offsetWidth ?? window.innerWidth
+      const n = w >= 900 ? 3 : w >= 560 ? 2 : 1
+      if (n === cppRef.current) return
+      cppRef.current = n
+      setCpp(n)
+      // Reset to page 0 on resize — avoids out-of-bounds page index
+      pageRef.current = 0
+      setPage(0)
     }
-
-    rafId = requestAnimationFrame(tick)
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        isIntersectingRef.current = entry.isIntersecting
-        viewPausedRef.current = document.hidden || !entry.isIntersecting
-      },
-      // Fire as soon as any pixel is visible so the scroll is already
-      // drifting by the time the user finishes scrolling to this section
-      { threshold: 0.01 },
-    )
-    observer.observe(el)
-
-    function onVisibility() {
-      viewPausedRef.current = document.hidden || !isIntersectingRef.current
-    }
-    document.addEventListener('visibilitychange', onVisibility)
-
-    return () => {
-      cancelAnimationFrame(rafId)
-      observer.disconnect()
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
+    recalc()
+    const ro = new ResizeObserver(recalc)
+    if (wrapRef.current) ro.observe(wrapRef.current)
+    return () => ro.disconnect()
   }, [])
 
-  // ── Nav button handlers ───────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────────
 
-  function scrollBy(direction: 1 | -1) {
-    const el = scrollRef.current
-    if (!el) return
-    const jump = JUMP * (CARD_W + GAP)
-
-    // Left guard: if scrollLeft would go negative, jump to the equivalent
-    // position in the second copy of the set before animating back
-    if (direction === -1 && el.scrollLeft < jump) {
-      el.scrollLeft += el.scrollWidth / 3
-    }
-
-    manualScrollingRef.current = true
-    hoverPausedRef.current     = true
-    el.scrollBy({ left: direction * jump, behavior: 'smooth' })
-
-    // Resume auto-scroll after smooth animation completes
-    setTimeout(() => {
-      hoverPausedRef.current     = false
-      manualScrollingRef.current = false
-    }, 600)
+  function totalPages() {
+    return Math.max(1, Math.ceil(cards.length / cppRef.current))
   }
+
+  /** Advance by +1 or -1 pages with animation lock */
+  function goPage(delta: 1 | -1) {
+    if (lockRef.current) return
+    lockRef.current = true
+    const tp   = totalPages()
+    const next = ((pageRef.current + delta) % tp + tp) % tp
+    pageRef.current = next
+    setPage(next)
+    setTimeout(() => { lockRef.current = false }, SLIDE_MS + 60)
+  }
+
+  /** Jump directly to a page index (used by dot indicators) */
+  function jumpPage(i: number) {
+    if (lockRef.current || i === pageRef.current) return
+    lockRef.current = true
+    pageRef.current = i
+    setPage(i)
+    resetTimer()
+    setTimeout(() => { lockRef.current = false }, SLIDE_MS + 60)
+  }
+
+  // ── Auto-advance ──────────────────────────────────────────────────────────────
+
+  function resetTimer() {
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => goPage(1), AUTO_MS)
+  }
+
+  useEffect(() => {
+    resetTimer()
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, []) // goPage / resetTimer read only refs → no stale closure
+
+  // ── Touch swipe ───────────────────────────────────────────────────────────────
+
+  const txRef = useRef(0)
+  const tyRef = useRef(0)
+
+  // ── Early exit ────────────────────────────────────────────────────────────────
 
   if (cards.length === 0) return null
 
-  // Shared button style
-  const btnBase: React.CSSProperties = {
-    background:     'rgba(10,10,20,0.82)',
-    border:         '1px solid rgba(255,255,255,0.13)',
-    backdropFilter: 'blur(10px)',
-    boxShadow:      '0 4px 20px rgba(0,0,0,0.55)',
-  }
+  // ── Derived values ────────────────────────────────────────────────────────────
+
+  const tp       = Math.max(1, Math.ceil(cards.length / cpp))
+  const safePage = Math.min(page, tp - 1)   // guard during cpp transitions
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <>
-      <style>{`.insights-scroll::-webkit-scrollbar { display: none; }`}</style>
+    <div ref={wrapRef} className="relative group">
 
-      {/* Outer wrapper: relative so buttons can be positioned on the edges */}
-      <div className="relative group">
+      {/* ── Left chevron ──────────────────────────────────────────────────── */}
+      <button
+        onClick={() => { resetTimer(); goPage(-1) }}
+        aria-label="Previous cards"
+        className="
+          hidden sm:flex
+          absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2
+          z-20 w-11 h-11 rounded-full items-center justify-center
+          opacity-0 group-hover:opacity-100
+          hover:scale-110 active:scale-95
+          transition-all duration-200
+        "
+        style={BTN}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15,18 9,12 15,6" />
+        </svg>
+      </button>
 
-        {/* ── Left chevron ─────────────────────────────────────────────────── */}
-        <button
-          onClick={() => scrollBy(-1)}
-          aria-label="Previous cards"
-          className="
-            hidden sm:flex
-            absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2
-            z-20 w-11 h-11 rounded-full items-center justify-center
-            opacity-0 group-hover:opacity-100
-            hover:scale-110 active:scale-95
-            transition-all duration-200
-          "
-          style={btnBase}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15,18 9,12 15,6" />
-          </svg>
-        </button>
+      {/* ── Right chevron ─────────────────────────────────────────────────── */}
+      <button
+        onClick={() => { resetTimer(); goPage(1) }}
+        aria-label="Next cards"
+        className="
+          hidden sm:flex
+          absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2
+          z-20 w-11 h-11 rounded-full items-center justify-center
+          opacity-0 group-hover:opacity-100
+          hover:scale-110 active:scale-95
+          transition-all duration-200
+        "
+        style={BTN}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9,18 15,12 9,6" />
+        </svg>
+      </button>
 
-        {/* ── Right chevron ────────────────────────────────────────────────── */}
-        <button
-          onClick={() => scrollBy(1)}
-          aria-label="Next cards"
-          className="
-            hidden sm:flex
-            absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2
-            z-20 w-11 h-11 rounded-full items-center justify-center
-            opacity-0 group-hover:opacity-100
-            hover:scale-110 active:scale-95
-            transition-all duration-200
-          "
-          style={btnBase}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9,18 15,12 9,6" />
-          </svg>
-        </button>
-
-        {/* ── Carousel with edge-fade mask ─────────────────────────────────── */}
+      {/* ── Slide viewport ────────────────────────────────────────────────── */}
+      <div
+        className="overflow-hidden"
+        onTouchStart={e => {
+          txRef.current = e.touches[0].clientX
+          tyRef.current = e.touches[0].clientY
+        }}
+        onTouchEnd={e => {
+          const dx = e.changedTouches[0].clientX - txRef.current
+          const dy = e.changedTouches[0].clientY - tyRef.current
+          // Only act on clear horizontal swipes (≥40 px, more horizontal than vertical)
+          if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx)) return
+          resetTimer()
+          goPage(dx < 0 ? 1 : -1)
+        }}
+      >
         <div
+          className="flex"
           style={{
-            maskImage:       'linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%)',
+            transform:  `translateX(-${safePage * 100}%)`,
+            transition: `transform ${SLIDE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+            willChange: 'transform',
           }}
         >
-          <div
-            ref={scrollRef}
-            className="insights-scroll overflow-x-auto"
-            style={{
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              // Snap to card boundaries after each swipe on mobile.
-              // Does not affect desktop — RAF keeps the scroll moving continuously
-              // so the browser never sees a "resting" state to snap from.
-              // 'proximity' is less aggressive than 'mandatory' — it won't
-              // fight the RAF's small incremental scrollLeft changes on iPad Safari
-              scrollSnapType: 'x proximity',
-            }}
-            aria-live="off"
-            onMouseEnter={() => { hoverPausedRef.current = true  }}
-            onMouseLeave={() => { hoverPausedRef.current = false }}
-            onFocus={()     => { hoverPausedRef.current = true  }}
-            onBlur={()      => { hoverPausedRef.current = false }}
-            // ── Touch handlers ─────────────────────────────────────────────
-            // Only pause the RAF for HORIZONTAL swipes (carousel interaction).
-            // Vertical page scrolls must NOT pause it — on iPad the finger often
-            // starts inside the carousel area while the user is scrolling the page.
-            onTouchStart={e => {
-              touchStartXRef.current    = e.touches[0].clientX
-              touchStartYRef.current    = e.touches[0].clientY
-              touchDirectionRef.current = null
-              touchActiveRef.current    = true
-            }}
-            onTouchMove={e => {
-              if (touchDirectionRef.current !== null) return
-              const dx = Math.abs(e.touches[0].clientX - touchStartXRef.current)
-              const dy = Math.abs(e.touches[0].clientY - touchStartYRef.current)
-              if (dx < 4 && dy < 4) return  // haven't moved enough yet
-              touchDirectionRef.current = dx >= dy ? 'h' : 'v'
-              if (touchDirectionRef.current === 'h') {
-                // Horizontal swipe — pause RAF so it doesn't fight the gesture
-                hoverPausedRef.current = true
-              }
-            }}
-            onTouchEnd={() => {
-              setTimeout(() => {
-                hoverPausedRef.current = false
-                touchActiveRef.current = false
-                touchDirectionRef.current = null
-              }, 800)
-            }}
-            onTouchCancel={() => {
-              setTimeout(() => {
-                hoverPausedRef.current = false
-                touchActiveRef.current = false
-                touchDirectionRef.current = null
-              }, 300)
-            }}
-          >
-            {/* pl-6 on mobile aligns first card with section heading; sm:pl-0 resets on desktop */}
-            <div className="flex gap-4 pb-1 pl-6 sm:pl-0" style={{ width: 'max-content' }}>
-              {items.map((card, i) => (
-                <div key={i} style={{ width: CARD_WIDTH_CSS, flexShrink: 0, scrollSnapAlign: 'start' }}>
-                  <InsightCard {...card} />
-                </div>
+          {Array.from({ length: tp }, (_, pi) => (
+            <div
+              key={pi}
+              className="min-w-full grid gap-4"
+              style={{ gridTemplateColumns: `repeat(${cpp}, 1fr)` }}
+            >
+              {cards.slice(pi * cpp, (pi + 1) * cpp).map((card, ci) => (
+                <InsightCard key={`${pi}-${ci}`} {...card} />
               ))}
             </div>
-          </div>
+          ))}
         </div>
-
       </div>
-    </>
+
+      {/* ── Page indicators ───────────────────────────────────────────────── */}
+      {tp > 1 && (
+        <div className="flex justify-center items-center gap-1.5 mt-5">
+          {tp <= 9 ? (
+            /* Pill dots — one per page */
+            Array.from({ length: tp }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => jumpPage(i)}
+                aria-label={`Go to page ${i + 1}`}
+                className="rounded-full transition-all duration-300 cursor-pointer"
+                style={{
+                  height:     6,
+                  width:      i === safePage ? 24 : 6,
+                  background: i === safePage
+                    ? 'rgba(255,255,255,0.85)'
+                    : 'rgba(255,255,255,0.22)',
+                }}
+              />
+            ))
+          ) : (
+            /* Compact counter for very long lists */
+            <span className="text-[11px] tracking-widest text-white/35 tabular-nums">
+              {safePage + 1} / {tp}
+            </span>
+          )}
+        </div>
+      )}
+
+    </div>
   )
 }
