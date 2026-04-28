@@ -165,14 +165,21 @@ def get_actor_movies(actor_id: int, db: Session = Depends(get_db)):
 
     movies = actor_repo.get_movies(db, actor_id)
 
-    # Resolve director from the normalised movie_directors join table first.
-    # Falls back to the legacy movies.director TEXT column for any rows not yet
-    # backfilled into the join table (e.g. very old Wikidata-only entries).
+    # Director resolution strategy (two-source problem):
+    #
+    #   actor_director_stats (chips) is built from movies.director TEXT column.
+    #   If we swap to the join table here, names diverge (e.g. "I. V. Sasi" vs
+    #   "i v sasi") and the frontend filter m.director === d.director breaks.
+    #
+    #   Safe rule: prefer legacy TEXT when it exists (keeps chip↔movie names in
+    #   sync), fall back to the normalised join table only for genuine nulls.
+    #   Null-filled entries won't have a chip (actor_director_stats skips nulls)
+    #   so there is no mismatch risk for the fallback path either.
     return [
         schemas.ActorMovieOut(
             title=m.title,
             release_year=m.release_year,
-            director=m.director_names[0] if m.director_names else m.director,
+            director=m.director or (m.director_names[0] if m.director_names else None),
             runtime=m.runtime,
             production_company=m.production_company,
             language=m.language,
