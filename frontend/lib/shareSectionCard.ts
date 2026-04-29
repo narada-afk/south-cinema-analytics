@@ -345,9 +345,13 @@ export async function buildCollaboratorsCanvas(d: CollaboratorsShareData): Promi
 
 /**
  * Converts a canvas to a PNG and delivers it via:
- *   • native share sheet with file (mobile — Web Share API)
- *   • automatic PNG download          (desktop)
- *   • clipboard URL copy              (fallback if canvas fails)
+ *   • native share sheet with file  (mobile only — Web Share API)
+ *   • automatic PNG download        (desktop — Brave/Chrome/Safari safe)
+ *   • clipboard URL copy            (last resort if canvas API is fully blocked)
+ *
+ * Desktop deliberately skips navigator.share() — on Brave/Chrome desktop it
+ * either requires an explicit user gesture in a popup or throws AbortError,
+ * which previously caused silent fallback to clipboard copy.
  */
 export async function shareCanvasCard(
   canvas: HTMLCanvasElement,
@@ -355,30 +359,64 @@ export async function shareCanvasCard(
   actorName: string,
   pageHref: string,
 ): Promise<{ ok: boolean }> {
-  try {
-    const blob: Blob = await new Promise((res, rej) =>
-      canvas.toBlob(b => (b ? res(b) : rej(new Error('toBlob null'))), 'image/png')
-    )
-    const file    = new File([blob], filename, { type: 'image/png' })
-    const origin  = typeof window !== 'undefined' ? window.location.origin : ''
-    const fullUrl = `${origin}${pageHref.startsWith('/') ? pageHref : `/${pageHref}`}`
+  const origin  = typeof window !== 'undefined' ? window.location.origin : ''
+  const fullUrl = `${origin}${pageHref.startsWith('/') ? pageHref : `/${pageHref}`}`
 
-    if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: `CineTrace — ${actorName}`, url: fullUrl })
-    } else {
-      const url = URL.createObjectURL(blob)
-      const a   = document.createElement('a')
-      a.href = url; a.download = filename; a.click()
-      setTimeout(() => URL.revokeObjectURL(url), 5_000)
+  // ── 1. Get a Blob from the canvas ────────────────────────────────────────────
+  // Try toBlob first; if Brave's fingerprint-protection returns null, fall back
+  // to toDataURL → fetch() to get the same Blob another way.
+  let blob: Blob | null = null
+
+  try {
+    blob = await new Promise<Blob | null>(res =>
+      canvas.toBlob(b => res(b), 'image/png'),
+    )
+  } catch { /* browser blocked toBlob */ }
+
+  if (!blob) {
+    try {
+      const dataUrl = canvas.toDataURL('image/png')
+      const r = await fetch(dataUrl)
+      blob = await r.blob()
+    } catch { /* also blocked */ }
+  }
+
+  if (!blob) {
+    // Canvas API entirely blocked — copy link as last resort
+    try { await navigator.clipboard.writeText(fullUrl) } catch { /* noop */ }
+    return { ok: false }
+  }
+
+  // ── 2. Mobile: native share sheet (file attachment) ──────────────────────────
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(
+    typeof navigator !== 'undefined' ? navigator.userAgent : '',
+  )
+
+  if (isMobile) {
+    const file = new File([blob], filename, { type: 'image/png' })
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: `CineTrace — ${actorName}`, url: fullUrl })
+        return { ok: true }
+      } catch { /* user cancelled or unsupported — fall through to download */ }
     }
+  }
+
+  // ── 3. Desktop (or mobile fallback): direct PNG download ────────────────────
+  try {
+    const url = URL.createObjectURL(blob)
+    const a   = document.createElement('a')
+    a.href     = url
+    a.download = filename
+    // Anchor must be in the DOM for Chromium-based browsers to honour .download
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 5_000)
     return { ok: true }
   } catch (err) {
-    console.error('[shareCanvasCard]', err)
-    try {
-      const origin  = typeof window !== 'undefined' ? window.location.origin : ''
-      const fullUrl = `${origin}${pageHref.startsWith('/') ? pageHref : `/${pageHref}`}`
-      await navigator.clipboard.writeText(fullUrl)
-    } catch { /* clipboard unavailable */ }
+    console.error('[shareCanvasCard] download failed', err)
+    try { await navigator.clipboard.writeText(fullUrl) } catch { /* noop */ }
     return { ok: false }
   }
 }
