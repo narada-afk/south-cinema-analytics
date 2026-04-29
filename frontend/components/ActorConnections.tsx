@@ -190,10 +190,10 @@ export default function ActorConnections({ actor }: ActorConnectionsProps) {
       id="connections"
       className="p-6 sm:p-8"
       style={{
-        background: '#13131a',
+        background: 'linear-gradient(145deg, #0d1018 0%, #0c0c18 100%)',
         borderRadius: 24,
-        border: '1px solid rgba(255,255,255,0.07)',
-        boxShadow: '0 8px 30px rgba(0,0,0,0.22)',
+        border: '1px solid rgba(34,211,238,0.10)',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.28), 0 0 0 1px rgba(34,211,238,0.04) inset',
       }}
     >
       {/* Header */}
@@ -201,8 +201,8 @@ export default function ActorConnections({ actor }: ActorConnectionsProps) {
         <h2 className="text-white font-bold text-xl flex items-center gap-2">
           🔗 Connection Finder
         </h2>
-        <p className="text-white/38 text-sm mt-1">
-          Find the path between {actor.name} and any other star
+        <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.38)' }}>
+          How many handshakes from <span className="text-white/60 font-medium">{actor.name}</span> to any star in the database?
         </p>
       </div>
 
@@ -217,10 +217,23 @@ export default function ActorConnections({ actor }: ActorConnectionsProps) {
           locked={true}
         />
 
-        <div className="flex sm:flex-col items-center justify-center gap-1 flex-shrink-0 py-2">
-          <div className="h-px sm:h-8 w-12 sm:w-px bg-white/10" />
-          <span className="text-white/20 text-xs font-mono">→</span>
-          <div className="h-px sm:h-8 w-12 sm:w-px bg-white/10" />
+        {/* Connector visual */}
+        <div className="flex sm:flex-col items-center justify-center gap-1.5 flex-shrink-0 py-2">
+          <div className="h-px sm:h-6 w-8 sm:w-px" style={{ background: 'rgba(34,211,238,0.18)' }} />
+          <div
+            className="flex items-center justify-center rounded-full flex-shrink-0"
+            style={{
+              width: 28,
+              height: 28,
+              background: 'rgba(34,211,238,0.10)',
+              border: '1px solid rgba(34,211,238,0.22)',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(34,211,238,0.70)" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M5 12h14M13 6l6 6-6 6"/>
+            </svg>
+          </div>
+          <div className="h-px sm:h-6 w-8 sm:w-px" style={{ background: 'rgba(34,211,238,0.18)' }} />
         </div>
 
         <ActorBox
@@ -238,14 +251,34 @@ export default function ActorConnections({ actor }: ActorConnectionsProps) {
         <button
           onClick={handleFind}
           disabled={loading || !canSearch}
-          className={`
-            px-8 py-3 rounded-full font-bold text-sm transition-all duration-200
-            ${canSearch && !loading
-              ? 'bg-white text-[#0a0a0f] hover:scale-[1.03] hover:shadow-lg hover:shadow-white/20 active:scale-95'
-              : 'bg-white/[0.08] text-white/50 border border-white/[0.12] cursor-default'}
-          `}
+          className="px-8 py-3 rounded-full font-bold text-sm transition-all duration-200"
+          style={canSearch && !loading ? {
+            background: 'rgba(34,211,238,0.15)',
+            border: '1px solid rgba(34,211,238,0.35)',
+            color: 'rgba(34,211,238,0.95)',
+            cursor: 'pointer',
+          } : {
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            color: 'rgba(255,255,255,0.35)',
+            cursor: 'default',
+          }}
+          onMouseEnter={e => {
+            if (!canSearch || loading) return
+            const el = e.currentTarget as HTMLButtonElement
+            el.style.background = 'rgba(34,211,238,0.22)'
+            el.style.transform = 'scale(1.03) translateY(-1px)'
+            el.style.boxShadow = '0 6px 20px rgba(34,211,238,0.20)'
+          }}
+          onMouseLeave={e => {
+            if (!canSearch || loading) return
+            const el = e.currentTarget as HTMLButtonElement
+            el.style.background = 'rgba(34,211,238,0.15)'
+            el.style.transform = 'scale(1) translateY(0)'
+            el.style.boxShadow = 'none'
+          }}
         >
-          {loading ? 'Finding path…' : 'Find Connection'}
+          {loading ? 'Finding path…' : 'Find Connection →'}
         </button>
       </div>
 

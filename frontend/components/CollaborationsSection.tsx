@@ -362,58 +362,72 @@ function BlockbustersList({
           Numbers are approximate and may differ from official figures.
         </p>
       </div>
-      <div className="flex flex-col gap-2">
+      {/* Prestige leaderboard card */}
+      <div
+        className="flex flex-col overflow-hidden"
+        style={{
+          background: '#0e0c08',
+          border: '1px solid rgba(207,175,107,0.14)',
+          borderRadius: 20,
+          boxShadow: '0 4px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(207,175,107,0.06) inset',
+        }}
+      >
         {blockbusters.map((b, i) => {
-          const pct       = (b.box_office_crore / maxCrore) * 100
-          const isFirst   = i === 0
-          const isTop3    = i < 3
+          const pct     = (b.box_office_crore / maxCrore) * 100
+          const isFirst = i === 0
+          const isTop3  = i < 3
 
-          // Size tiers
-          const posterW   = isFirst ? 52 : isTop3 ? 42 : 36
-          const posterH   = isFirst ? 78 : isTop3 ? 63 : 54
-          const py        = isFirst ? 'py-4' : isTop3 ? 'py-3' : 'py-2.5'
+          const posterW = isFirst ? 56 : isTop3 ? 44 : 38
+          const posterH = isFirst ? 84 : isTop3 ? 66 : 57
+          const py      = isFirst ? 'py-5' : isTop3 ? 'py-3.5' : 'py-3'
+          const px      = 'px-5'
 
           const rankColor =
-            i === 0 ? 'text-yellow-400'
-            : i === 1 ? 'text-slate-300/80'
-            : i === 2 ? 'text-amber-600/80'
-            : 'text-white/18'
+            i === 0 ? '#F5D98B'
+            : i === 1 ? 'rgba(200,210,220,0.75)'
+            : i === 2 ? 'rgba(180,120,60,0.80)'
+            : 'rgba(255,255,255,0.18)'
 
-          const bgColor   = isFirst ? 'rgba(207,175,107,0.07)' : 'rgba(255,255,255,0.02)'
-          const bgHover   = isFirst ? 'rgba(207,175,107,0.11)' : 'rgba(255,255,255,0.045)'
-          const border    = isFirst ? '1px solid rgba(207,175,107,0.22)' : '1px solid rgba(255,255,255,0.05)'
-          const glow      = isFirst ? '0 0 28px rgba(245,217,139,0.10)' : 'none'
-          const barGlow   = isFirst ? '0 0 14px rgba(245,217,139,0.35)' : '0 0 10px rgba(245,217,139,0.2)'
+          const rowBg    = isFirst ? 'rgba(207,175,107,0.07)' : 'transparent'
+          const rowHover = isFirst ? 'rgba(207,175,107,0.12)' : 'rgba(255,255,255,0.04)'
+          const borderL  = isFirst ? '3px solid rgba(245,217,139,0.55)' : '3px solid transparent'
+          const glow     = isFirst ? '0 0 40px rgba(245,217,139,0.08) inset' : 'none'
+          const barGlow  = isFirst ? '0 0 12px rgba(245,217,139,0.40)' : '0 0 8px rgba(207,175,107,0.20)'
+          const divider  = i < blockbusters.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'
 
           return (
             <div
               key={b.title}
-              className={`rounded-xl px-4 ${py} transition-all duration-200 cursor-default`}
-              style={{ background: bgColor, border, boxShadow: glow }}
-              onMouseEnter={e => {
-                const el = e.currentTarget as HTMLDivElement
-                el.style.transform = 'scale(1.01)'
-                el.style.background = bgHover
+              className={`${px} ${py} transition-all duration-200 cursor-default`}
+              style={{
+                background: rowBg,
+                borderLeft: borderL,
+                boxShadow: glow,
+                borderBottom: divider,
               }}
-              onMouseLeave={e => {
-                const el = e.currentTarget as HTMLDivElement
-                el.style.transform = 'scale(1)'
-                el.style.background = bgColor
-              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = rowHover }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = rowBg   }}
             >
               <div className="flex items-center gap-4">
                 {/* Rank */}
-                <span
-                  className={`flex-shrink-0 font-bold w-6 text-center tabular-nums ${rankColor}`}
-                  style={{ fontSize: isFirst ? 14 : isTop3 ? 12 : 11 }}
-                >
-                  #{i + 1}
-                </span>
+                <div className="flex-shrink-0 w-7 text-center">
+                  <span
+                    className="font-bold tabular-nums"
+                    style={{ fontSize: isFirst ? 15 : isTop3 ? 13 : 11, color: rankColor }}
+                  >
+                    #{i + 1}
+                  </span>
+                </div>
 
                 {/* Poster */}
                 <div
-                  className="flex-shrink-0 rounded-lg overflow-hidden bg-white/[0.04] shadow-md"
-                  style={{ width: posterW, height: posterH }}
+                  className="flex-shrink-0 overflow-hidden shadow-lg"
+                  style={{
+                    width: posterW,
+                    height: posterH,
+                    borderRadius: isFirst ? 12 : 8,
+                    boxShadow: isFirst ? '0 6px 20px rgba(0,0,0,0.55)' : '0 4px 12px rgba(0,0,0,0.45)',
+                  }}
                 >
                   {b.poster_url ? (
                     <Image
@@ -424,64 +438,79 @@ function BlockbustersList({
                       className="object-cover w-full h-full"
                     />
                   ) : (
-                    <div className="w-full h-full" />
+                    <div className="w-full h-full bg-white/[0.04]" />
                   )}
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                  {/* Top row: title + amount */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       {isFirst && (
-                        <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: '#F5D98B', opacity: 0.8 }}>
-                          🏆 Highest Grossing
+                        <p
+                          className="text-[9px] font-bold uppercase tracking-[0.18em] mb-1.5"
+                          style={{ color: 'rgba(245,217,139,0.70)' }}
+                        >
+                          🏆 Highest Grosser
                         </p>
                       )}
-                      <p className={`font-semibold truncate leading-snug ${
-                        isFirst ? 'text-white text-[15px]'
-                        : isTop3 ? 'text-white/85 text-sm'
-                        : 'text-white/70 text-sm'
-                      }`}>
+                      <p
+                        className="truncate leading-snug font-semibold"
+                        style={{
+                          fontSize: isFirst ? 16 : isTop3 ? 14 : 13,
+                          color: isFirst ? '#fff' : isTop3 ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.62)',
+                        }}
+                      >
                         {b.title}
                       </p>
-                      <p className={`mt-0.5 ${isFirst ? 'text-white/35 text-xs' : 'text-white/25 text-[11px]'}`}>
+                      <p
+                        className="mt-0.5 tabular-nums"
+                        style={{ fontSize: 11, color: isFirst ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.22)' }}
+                      >
                         {b.release_year}
                       </p>
                     </div>
-                    {/* Collection + ROI */}
+
+                    {/* Revenue block */}
                     <div className="flex-shrink-0 text-right">
-                      <span className={`font-bold tabular-nums block ${
-                        isFirst ? 'text-[#F5D98B] text-base'
-                        : isTop3 ? 'text-[#CFAF6B]/90 text-sm'
-                        : 'text-[#CFAF6B]/60 text-xs'
-                      }`}>
+                      <span
+                        className="font-bold tabular-nums block"
+                        style={{
+                          fontSize: isFirst ? 22 : isTop3 ? 15 : 13,
+                          color: isFirst ? '#F5D98B' : isTop3 ? 'rgba(207,175,107,0.85)' : 'rgba(207,175,107,0.55)',
+                          letterSpacing: '-0.02em',
+                          lineHeight: 1.1,
+                        }}
+                      >
                         {formatCrore(b.box_office_crore)}
                       </span>
                       {b.budget_crore && b.budget_crore > 0 && (
-                        <span className="text-[10px] text-white/30 tabular-nums">
-                          {(b.box_office_crore / b.budget_crore).toFixed(1)}x ROI
+                        <span className="text-[10px] tabular-nums" style={{ color: 'rgba(255,255,255,0.28)' }}>
+                          {(b.box_office_crore / b.budget_crore).toFixed(1)}× ROI
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Budget row */}
+                  {/* Budget */}
                   {b.budget_crore && b.budget_crore > 0 && (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-white/25">Budget</span>
-                      <span className="text-[10px] text-white/40 font-medium tabular-nums">{formatCrore(b.budget_crore)}</span>
-                      <span className="text-[9px] text-white/15">({b.budget_source})</span>
+                      <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.22)' }}>Budget</span>
+                      <span className="text-[10px] font-medium tabular-nums" style={{ color: 'rgba(255,255,255,0.38)' }}>
+                        {formatCrore(b.budget_crore)}
+                      </span>
                     </div>
                   )}
 
                   {/* Progress bar */}
-                  <div className="h-[4px] rounded-full w-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                  <div className="h-[3px] rounded-full w-full mt-0.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
                     <div
                       className="bb-bar h-full rounded-full relative overflow-hidden"
                       style={{
                         width: barsReady ? `${pct}%` : '0%',
-                        background: 'linear-gradient(90deg, #CFAF6B, #F5D98B, #CFAF6B)',
+                        background: isFirst
+                          ? 'linear-gradient(90deg, #B8903A, #F5D98B, #E8C96A)'
+                          : 'linear-gradient(90deg, #CFAF6B, #E8C96A)',
                         boxShadow: barGlow,
                         transition: `width ${700 + i * 40}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`,
                       }}
@@ -493,7 +522,7 @@ function BlockbustersList({
           )
         })}
       </div>
-      <p className="text-white/20 text-[11px] text-right">
+      <p className="text-white/18 text-[10px] text-right">
         Box office: TMDB · Budget: TMDB / Wikipedia
       </p>
     </div>

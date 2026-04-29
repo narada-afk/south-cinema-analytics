@@ -119,7 +119,7 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
       <TrackEvent event="actor_viewed" props={{ actor_id: actor.id, actor_name: actor.name, industry: actor.industry }} />
       <Header />
 
-      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-32 flex flex-col gap-12 sm:gap-16 lg:gap-[72px]">
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-32 flex flex-col gap-16 sm:gap-20 lg:gap-28">
 
         {/* ── 1. Hero ───────────────────────────────────────────── */}
         <ActorHero
@@ -127,6 +127,11 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
           collaboratorCount={collaborators.length}
           directorCount={directors.length}
           firstFilm={firstFilm ? { title: firstFilm.title, year: firstFilm.release_year } : null}
+          biggestHit={blockbusters.length > 0 ? {
+            title: blockbusters[0].title,
+            crore: blockbusters[0].box_office_crore,
+            year:  blockbusters[0].release_year,
+          } : null}
         />
 
         {/* ── 2. Filmography Preview (horizontal strip) — released films only ── */}
