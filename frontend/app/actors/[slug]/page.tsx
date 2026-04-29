@@ -119,7 +119,7 @@ export default async function ActorPage({ params, searchParams }: PageProps) {
       <TrackEvent event="actor_viewed" props={{ actor_id: actor.id, actor_name: actor.name, industry: actor.industry }} />
       <Header />
 
-      <main className="max-w-[1200px] mx-auto px-6 pb-24 flex flex-col gap-14">
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-32 flex flex-col gap-12 sm:gap-16 lg:gap-[72px]">
 
         {/* ── 1. Hero ───────────────────────────────────────────── */}
         <ActorHero

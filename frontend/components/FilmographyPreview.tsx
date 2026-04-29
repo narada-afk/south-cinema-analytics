@@ -72,13 +72,30 @@ export default function FilmographyPreview({ movies, totalCount }: FilmographyPr
     }
   }, [])
 
+  // Build a dynamic subtitle from the data
+  const earliestYear = sorted.length > 0 ? sorted[sorted.length - 1].release_year : null
+  const latestYear   = sorted.length > 0 ? sorted[0].release_year : null
+  const yearRange    = earliestYear && latestYear && earliestYear !== latestYear
+    ? `${earliestYear}–${latestYear}`
+    : earliestYear ? `${earliestYear}` : null
+  const subtitle = yearRange
+    ? `${totalCount} titles · ${yearRange}`
+    : `${totalCount} titles`
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white/80">🎬 Filmography</h2>
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-white leading-snug">🎬 Filmography</h2>
+          <p className="text-sm text-white/35 mt-0.5">{subtitle}</p>
+        </div>
         {totalCount > 0 && (
-          <a href="#full-filmography" className="text-xs text-white/35 hover:text-white/60 transition-colors">
-            View all films ↓
+          <a
+            href="#full-filmography"
+            className="flex-shrink-0 text-xs font-medium px-4 py-1.5 rounded-full border border-white/[0.10] text-white/45 hover:text-white/75 hover:border-white/22 transition-all duration-200"
+            style={{ background: '#13131a' }}
+          >
+            View all {totalCount} →
           </a>
         )}
       </div>
@@ -132,11 +149,11 @@ function FilmCard({ movie }: { movie: ActorMovie }) {
 
   return (
     <div
-      className="flex-shrink-0 group hover:scale-[1.05] transition-transform duration-200 cursor-default"
+      className="flex-shrink-0 group cursor-default"
       style={{ width: 100 }}
     >
       <div
-        className="relative rounded-xl overflow-hidden bg-[#1a1a24] shadow-sm group-hover:shadow-lg transition-shadow duration-200"
+        className="relative rounded-[18px] overflow-hidden bg-[#1a1a24] shadow-sm group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.48)] group-hover:scale-[1.04] group-hover:-translate-y-1.5 transition-all duration-[220ms] ease-out"
         style={{ aspectRatio: '2/3' }}
       >
         {movie.poster_url ? (

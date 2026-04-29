@@ -174,8 +174,11 @@ export default function CollaborationsSection({
       {/* ── Lead Actresses / Lead Actors ────────────────── */}
       {hasActresses && (
         <div id="collaborators" className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-white/80 flex-1">{leadLabel}</h2>
+          <div className="flex items-start gap-2">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-bold text-white leading-snug">{leadLabel}</h2>
+              <p className="text-sm text-white/35 mt-0.5">Most frequent collaborators</p>
+            </div>
             {actorName && (
               <CanvasShareButton
                 label={leadLabel}
@@ -197,21 +200,21 @@ export default function CollaborationsSection({
                 const actorId = actorIdMap[c.actor]
                 const inner = (
                   <div className="flex flex-col items-center gap-2 flex-shrink-0 group">
-                    <div className={`ring-2 rounded-full transition-all ${
+                    <div className={`ring-2 rounded-full transition-all duration-200 ${
                       actorId
-                        ? 'ring-white/10 group-hover:ring-pink-400/40 cursor-pointer'
-                        : 'ring-white/[0.05]'
+                        ? 'ring-white/[0.08] group-hover:ring-violet-400/50 group-hover:scale-[1.06] cursor-pointer'
+                        : 'ring-white/[0.04]'
                     }`}>
                       <ActorAvatar name={c.actor} size={64} />
                     </div>
                     <p className={`text-xs font-medium text-center w-20 truncate transition-colors ${
                       actorId
-                        ? 'text-white/55 group-hover:text-white/80'
+                        ? 'text-white/55 group-hover:text-white/85'
                         : 'text-white/35'
                     }`}>
                       {c.actor.split(' ').slice(0, 2).join(' ')}
                     </p>
-                    <p className="text-white/25 text-[10px] -mt-1">{c.films} {c.films === 1 ? 'film' : 'films'}</p>
+                    <p className="text-white/28 text-[10px] -mt-1 tabular-nums">{c.films} {c.films === 1 ? 'film' : 'films'}</p>
                   </div>
                 )
                 return actorId ? (
@@ -322,8 +325,11 @@ function BlockbustersList({
         }
       `}</style>
       <div id="blockbusters" className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-bold text-white/80 flex-1">💰 Blockbusters</h2>
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-white leading-snug">💰 Blockbusters</h2>
+            <p className="text-sm text-white/35 mt-0.5">Box office collection</p>
+          </div>
           {actorName && (
             <CanvasShareButton
               label="Blockbusters"

@@ -466,10 +466,11 @@ export default function ActorInsightsCarousel({
   if (cards.length === 0) return null
 
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-white/40">
-        ✨ By the numbers
-      </h2>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h2 className="text-xl font-bold text-white">✨ By the Numbers</h2>
+        <p className="text-sm text-white/35 mt-0.5">Surprising career stats from the data</p>
+      </div>
       <InsightsCarousel cards={cards} />
     </div>
   )

@@ -14,15 +14,15 @@ export default function FullFilmography({ movies }: { movies: ActorMovie[] }) {
   if (movies.length === 0) return null
 
   return (
-    <div id="full-filmography" className="flex flex-col gap-4 scroll-mt-8">
+    <div id="full-filmography" className="flex flex-col gap-5 scroll-mt-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white/80">📽 All Films</h2>
-        <span />
+      <div>
+        <h2 className="text-xl font-bold text-white">📽 All Films</h2>
+        <p className="text-sm text-white/35 mt-0.5">{movies.length} titles in the database</p>
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-5">
         {displayed.map((movie, i) => (
           <MovieCard key={`${movie.title}-${i}`} movie={movie} />
         ))}
@@ -30,13 +30,13 @@ export default function FullFilmography({ movies }: { movies: ActorMovie[] }) {
 
       {/* Expand / collapse toggle */}
       {movies.length > INITIAL_SHOW && (
-        <div className="flex justify-center mt-2">
+        <div className="flex justify-center mt-3">
           <button
             onClick={() => setShowAll(v => !v)}
-            className="px-6 py-2.5 rounded-full text-xs font-semibold border border-white/[0.12] text-white/50 hover:text-white/80 hover:border-white/25 transition-all"
+            className="px-6 py-2.5 rounded-full text-xs font-semibold border border-white/[0.10] text-white/48 hover:text-white/80 hover:border-white/24 hover:scale-[1.03] transition-all duration-200"
             style={{ background: '#13131a' }}
           >
-            {showAll ? 'Show less ↑' : 'Show all films ↓'}
+            {showAll ? 'Show less ↑' : `Show all ${movies.length} films ↓`}
           </button>
         </div>
       )}
@@ -66,7 +66,7 @@ function MovieCard({ movie }: { movie: ActorMovie }) {
   return (
     <Wrapper>
       {/* Poster */}
-      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#1a1a24]">
+      <div className="relative aspect-[2/3] rounded-[18px] overflow-hidden bg-[#1a1a24] group-hover:-translate-y-1 group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.45)] transition-all duration-220">
         {movie.poster_url ? (
           <Image
             src={movie.poster_url}

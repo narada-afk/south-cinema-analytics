@@ -60,15 +60,19 @@ export default function CompareSection({ currentActor, suggestions, actorGender 
 
   return (
     <div
-      className="rounded-3xl p-6 sm:p-8 border border-white/[0.08]"
-      style={{ background: '#13131a' }}
+      className="rounded-[24px] p-6 sm:p-8"
+      style={{
+        background: '#13131a',
+        border: '1px solid rgba(255,255,255,0.07)',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.22)',
+      }}
     >
       {/* Header */}
       <div className="mb-6">
-        <h2 className="text-white font-bold text-lg flex items-center gap-2">
+        <h2 className="text-white font-bold text-xl flex items-center gap-2">
           ⚡ Compare with another {actorGender === 'F' ? 'actress' : 'actor'}
         </h2>
-        <p className="text-white/40 text-sm mt-1">Side-by-side career stats</p>
+        <p className="text-white/38 text-sm mt-1">Who wins by the numbers?</p>
       </div>
 
       {/* Quick suggestions */}
@@ -78,11 +82,11 @@ export default function CompareSection({ currentActor, suggestions, actorGender 
             <button
               key={s.id}
               onClick={() => navigate(s.name)}
-              className="flex items-center gap-2 px-3 py-2 rounded-full border border-white/[0.08] hover:border-white/25 hover:bg-white/[0.06] transition-all group"
+              className="flex items-center gap-2 px-3 py-2 rounded-full border border-white/[0.08] hover:border-white/25 hover:bg-white/[0.07] hover:scale-[1.03] transition-all duration-200 group"
               style={{ background: '#0d0d15' }}
             >
               <ActorAvatar name={s.name} size={24} />
-              <span className="text-white/55 group-hover:text-white/80 text-xs font-medium transition-colors">
+              <span className="text-white/50 group-hover:text-white/82 text-xs font-medium transition-colors">
                 {s.name.split(' ')[0]}
               </span>
             </button>
@@ -92,7 +96,7 @@ export default function CompareSection({ currentActor, suggestions, actorGender 
 
       {/* Search input */}
       <div className="relative">
-        <div className="glass rounded-2xl flex items-center px-4 gap-2 focus-within:ring-1 focus-within:ring-white/20 transition-all">
+        <div className="input-premium flex items-center px-4 gap-2">
           <span className="text-white/25 flex-shrink-0">🔍</span>
           <input
             ref={inputRef}

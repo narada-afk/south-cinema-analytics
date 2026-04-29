@@ -96,14 +96,14 @@ function ActorBox({
         </div>
       ) : (
         <div className="relative">
-          <div className="glass rounded-2xl flex items-center px-4 gap-2 focus-within:ring-1 focus-within:ring-white/20 transition-all">
+          <div className="input-premium flex items-center px-4 gap-2">
             <span className="text-white/25 flex-shrink-0">🔍</span>
             <input
               ref={inputRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder={placeholder}
-              className="flex-1 bg-transparent py-3.5 text-white placeholder-white/25 outline-none text-sm"
+              className="flex-1 bg-transparent py-3.5 text-white placeholder-white/28 outline-none text-sm"
             />
             {loading && (
               <span className="text-white/30 text-xs animate-pulse flex-shrink-0">…</span>
@@ -188,16 +188,21 @@ export default function ActorConnections({ actor }: ActorConnectionsProps) {
   return (
     <section
       id="connections"
-      className="rounded-3xl p-6 sm:p-8 border border-white/[0.08]"
-      style={{ background: '#13131a' }}
+      className="p-6 sm:p-8"
+      style={{
+        background: '#13131a',
+        borderRadius: 24,
+        border: '1px solid rgba(255,255,255,0.07)',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.22)',
+      }}
     >
       {/* Header */}
       <div className="mb-6">
-        <h2 className="text-white font-bold text-lg flex items-center gap-2">
+        <h2 className="text-white font-bold text-xl flex items-center gap-2">
           🔗 Connection Finder
         </h2>
-        <p className="text-white/40 text-sm mt-1">
-          Find the path between {actor.name} and any other actor
+        <p className="text-white/38 text-sm mt-1">
+          Find the path between {actor.name} and any other star
         </p>
       </div>
 
