@@ -16,11 +16,13 @@ export const metadata: Metadata = {
     siteName: 'CineTrace',
     locale: 'en_IN',
     type: 'website',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'CineTrace — South Indian Cinema Intelligence' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'CineTrace — South Indian Cinema Intelligence',
     description: 'Trace connections across South Indian cinema — 8,000+ actors, 4 industries, infinite connections.',
+    images: ['/og-image.png'],
   },
   icons: {
     icon: [
