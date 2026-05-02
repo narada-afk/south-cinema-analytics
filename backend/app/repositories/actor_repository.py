@@ -335,22 +335,20 @@ class ActorRepository:
         self, db: Session, actor1_id: int, actor2_id: int
     ) -> list:
         """
-        Movies both actors appeared in a lead/significant role, newest first.
-        Applies the same cameo guard as get_movies(): for is_primary_actor=TRUE
-        actors, actor_movies entries are restricted to role_type='primary' so
-        that guest appearances (e.g. Mohanlal in Jailer) don't show as shared
-        films. Non-primary actors are unaffected.
+        All movies both actors appeared in together, newest first.
+
+        No cameo guard here — unlike filmographies, shared films should include
+        every credit regardless of role_type. Both the cast (Wikidata) and
+        actor_movies (TMDB) pipelines are unioned so Malayalam and Telugu actors
+        are covered equally. A film qualifies if either pipeline links each actor.
         """
         return db.execute(text("""
             WITH actor_credits AS (
                 -- Wikidata (cast table) — always included, curated
                 SELECT actor_id, movie_id FROM "cast"
                 UNION
-                -- TMDB pipeline — exclude cameos for primary seed actors
-                SELECT am.actor_id, am.movie_id
-                FROM   actor_movies am
-                JOIN   actors a ON a.id = am.actor_id
-                WHERE  a.is_primary_actor = FALSE OR am.role_type = 'primary'
+                -- TMDB pipeline — all roles, no cameo filtering for compare
+                SELECT actor_id, movie_id FROM actor_movies
             )
             SELECT
                 m.title,
