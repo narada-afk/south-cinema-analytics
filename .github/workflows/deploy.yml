@@ -38,6 +38,30 @@ jobs:
             sleep 10
             curl -sf http://localhost:8000/health || (echo "Backend unhealthy!" && exit 1)
 
+            echo "==> Running data fixes..."
+            docker compose -f docker-compose.prod.yml exec -T backend python3 - << 'PYEOF'
+import psycopg2, os
+conn = psycopg2.connect(os.environ.get("DATABASE_URL", "postgresql://sca:sca@/sca?host=/tmp"))
+cur = conn.cursor()
+# Fix 1: remove bad Jack & Daniel (movie_id=132) link for Rajinikanth (actor_id=11)
+cur.execute("DELETE FROM actor_movies WHERE actor_id = 11 AND movie_id = 132")
+print(f"Fix 1 (Raj/Jack&Daniel): deleted {cur.rowcount} rows")
+# Fix 2: rebuild actor_collaborations from source data (ensures counts match actor_movies)
+cur.execute("""
+    INSERT INTO actor_collaborations (actor1_id, actor2_id, collaboration_count)
+    SELECT am1.actor_id, am2.actor_id, COUNT(*)
+    FROM actor_movies am1
+    JOIN actor_movies am2 ON am1.movie_id = am2.movie_id AND am1.actor_id != am2.actor_id
+    GROUP BY am1.actor_id, am2.actor_id
+    ON CONFLICT (actor1_id, actor2_id)
+    DO UPDATE SET collaboration_count = EXCLUDED.collaboration_count
+""")
+print(f"Fix 2 (actor_collaborations rebuild): upserted {cur.rowcount} rows")
+conn.commit()
+conn.close()
+print("Data fixes complete.")
+PYEOF
+
             echo "==> Cleaning up old images..."
             docker image prune -f
 
