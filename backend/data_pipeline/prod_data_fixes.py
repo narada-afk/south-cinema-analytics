@@ -42,6 +42,23 @@ cur.execute("""
 """)
 print(f"Fix 2 (actor_collaborations rebuild): upserted {cur.rowcount} rows")
 
+# ── Fix 3: Remove spurious Jack & Daniel credit for Prabhas ──────────────────
+# Same bad TMDB/Wikidata link as Rajinikanth — Prabhas incorrectly linked to
+# Jack & Daniel (movie_id=132, tmdb_id=635233). Check both pipelines.
+cur.execute("""
+    DELETE FROM actor_movies
+    WHERE actor_id = (SELECT id FROM actors WHERE name='Prabhas' LIMIT 1)
+      AND movie_id = (SELECT id FROM movies WHERE tmdb_id=635233 LIMIT 1)
+""")
+rows_am = cur.rowcount
+cur.execute("""
+    DELETE FROM "cast"
+    WHERE actor_id = (SELECT id FROM actors WHERE name='Prabhas' LIMIT 1)
+      AND movie_id = (SELECT id FROM movies WHERE tmdb_id=635233 LIMIT 1)
+""")
+rows_cast = cur.rowcount
+print(f"Fix 3 (Prabhas/Jack&Daniel): deleted {rows_am} actor_movies rows, {rows_cast} cast rows")
+
 conn.commit()
 conn.close()
 print("All data fixes complete.")
