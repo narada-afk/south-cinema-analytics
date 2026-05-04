@@ -11,10 +11,21 @@ conn = psycopg2.connect(DATABASE_URL)
 cur = conn.cursor()
 
 # ── Fix 1: Remove spurious Jack & Daniel credit for Rajinikanth ──────────────
-# TMDB incorrectly linked Rajinikanth (actor_id=11) to Jack & Daniel (movie_id=132),
-# a Malayalam film he has no connection to.
-cur.execute("DELETE FROM actor_movies WHERE actor_id = 11 AND movie_id = 132")
-print(f"Fix 1 (Raj/Jack&Daniel): deleted {cur.rowcount} rows")
+# Incorrectly linked Rajinikanth to Jack & Daniel (movie_id=132, tmdb_id=635233).
+# Check both pipelines (actor_movies + cast table).
+cur.execute("""
+    DELETE FROM actor_movies
+    WHERE actor_id = (SELECT id FROM actors WHERE name='Rajinikanth' LIMIT 1)
+      AND movie_id = (SELECT id FROM movies WHERE tmdb_id=635233 LIMIT 1)
+""")
+rows_am = cur.rowcount
+cur.execute("""
+    DELETE FROM "cast"
+    WHERE actor_id = (SELECT id FROM actors WHERE name='Rajinikanth' LIMIT 1)
+      AND movie_id = (SELECT id FROM movies WHERE tmdb_id=635233 LIMIT 1)
+""")
+rows_cast = cur.rowcount
+print(f"Fix 1 (Raj/Jack&Daniel): deleted {rows_am} actor_movies rows, {rows_cast} cast rows")
 
 # ── Fix 2: Rebuild actor_collaborations from source data ─────────────────────
 # Ensures collaboration counts match actual actor_movies entries.
